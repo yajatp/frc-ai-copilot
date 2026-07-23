@@ -17,6 +17,9 @@ import org.mercsmavs.frccopilot.ingest.store.LogSummary;
 import org.mercsmavs.frccopilot.ingest.store.TrendStore;
 import org.mercsmavs.frccopilot.profile.ProfileMapper;
 import org.mercsmavs.frccopilot.profile.RobotProfile;
+import org.mercsmavs.frccopilot.simreplay.RegressionSuite;
+import org.mercsmavs.frccopilot.simreplay.Scenario;
+import org.mercsmavs.frccopilot.simreplay.Verifier;
 import org.mercsmavs.frccopilot.write.PathDiff;
 import org.mercsmavs.frccopilot.write.PathFile;
 
@@ -104,6 +107,20 @@ final class ToolRegistry {
                         new Schemas.Prop("maxAcceleration", "number", "New max acceleration (m/s^2)", true),
                         new Schemas.Prop("out", "string", "Output path (omit for dry-run)", false)),
                 ToolRegistry::pathSetSpeed));
+
+        add(tools, new SimpleTool("loop_check", "Verify a scenario's success criteria against a"
+                + " log (the closed-loop 'verify' step). Returns per-check PASS/FAIL.",
+                Schemas.object(
+                        new Schemas.Prop("log", "string", "Path to a .wpilog (sim/replay/real)", true),
+                        new Schemas.Prop("scenario", "string", "Path to a scenario .yaml", true)),
+                ToolRegistry::loopCheck));
+
+        add(tools, new SimpleTool("loop_suite", "Run a whole regression suite (a directory of"
+                + " scenarios) against a log — every banked fix re-checked at once.",
+                Schemas.object(
+                        new Schemas.Prop("log", "string", "Path to a .wpilog", true),
+                        new Schemas.Prop("scenarioDir", "string", "Directory of scenario .yaml files", true)),
+                ToolRegistry::loopSuite));
 
         return tools;
     }
@@ -236,6 +253,21 @@ final class ToolRegistry {
         after.setGlobalConstraint("maxVelocity", a.get("maxVelocity").asDouble());
         after.setGlobalConstraint("maxAcceleration", a.get("maxAcceleration").asDouble());
         return applyOrDryRun(before, after, a.hasNonNull("out") ? a.get("out").asText() : null);
+    }
+
+    private static String loopCheck(JsonNode a) throws Exception {
+        WpilogReader r = new WpilogReader(str(a, "log"));
+        Scenario scenario = Scenario.load(Path.of(str(a, "scenario")));
+        return Verifier.verify(scenario, r::read).render();
+    }
+
+    private static String loopSuite(JsonNode a) throws Exception {
+        WpilogReader r = new WpilogReader(str(a, "log"));
+        List<Scenario> scenarios = RegressionSuite.load(Path.of(str(a, "scenarioDir")));
+        if (scenarios.isEmpty()) {
+            return "No scenarios found in " + str(a, "scenarioDir");
+        }
+        return RegressionSuite.runAll(scenarios, r::read).render();
     }
 
     private static String applyOrDryRun(PathFile before, PathFile after, String out) throws Exception {
