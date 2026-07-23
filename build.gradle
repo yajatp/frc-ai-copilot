@@ -1,0 +1,29 @@
+// Root build for the FRC AI Copilot.
+// Java core (JDK 17) so we can directly reuse WPILib's DataLogReader, wpimath, ntcore,
+// and later orchestrate the team's own Gradle project for sim/replay.
+
+subprojects {
+    apply plugin: 'java'
+
+    group = 'org.mercsmavs.frccopilot'
+    version = '0.1.0'
+
+    repositories {
+        // WPILib ships a full offline Maven repo with its 2026 artifacts.
+        maven { url = uri('file://' + System.getProperty('user.home') + '/wpilib/2026/maven') }
+        mavenCentral()
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+    }
+}

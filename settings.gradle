@@ -1,0 +1,4 @@
+rootProject.name = 'frc-ai-copilot'
+
+// Modules are added as they come online (see plan build order).
+include 'core-ingest'

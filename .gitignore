@@ -1,0 +1,22 @@
+.gradle/
+.gradle-home/
+build/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+
+# Local data / logs pulled from robots (not source)
+*.wpilog
+*.revlog
+/data/
+/logs/
+local.properties

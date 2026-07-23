@@ -1,0 +1,51 @@
+// Module 1 — Ingestion & storage core.
+apply plugin: 'application'
+
+dependencies {
+    // WPILib log parsing (DataLogReader) + geometry/struct decoding.
+    implementation "edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}"
+    implementation "edu.wpi.first.wpimath:wpimath-java:${wpilibVersion}"
+
+    // Persistent trend store + config parsing.
+    implementation 'org.xerial:sqlite-jdbc:3.46.1.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+    runtimeOnly 'org.slf4j:slf4j-nop:2.0.13' // silence sqlite-jdbc's optional SLF4J binding
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'org.mercsmavs.frccopilot.ingest.Cli'
+}
+
+// --- WPILib desktop native libraries (wpiutiljni, etc.) ---
+// DataLogWriter and ntcore need the JNI natives. Pull the desktop native zip and flatten the
+// .dylib files into build/natives, then point java.library.path there. Everything stays local.
+configurations {
+    natives
+}
+
+dependencies {
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+}
+
+def nativesDir = layout.buildDirectory.dir('natives')
+
+def extractNatives = tasks.register('extractNatives', Copy) {
+    from { configurations.natives.collect { zipTree(it) } }
+    include '**/*.dylib'
+    eachFile { it.path = it.name } // flatten so java.library.path is a single dir
+    includeEmptyDirs = false
+    into nativesDir
+}
+
+tasks.withType(Test).configureEach {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
+
+tasks.named('run') {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
