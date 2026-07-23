@@ -20,3 +20,6 @@ build/
 /data/
 /logs/
 local.properties
+
+# Read-only reference clones of the team robot repos (never committed into this repo)
+/reference/
