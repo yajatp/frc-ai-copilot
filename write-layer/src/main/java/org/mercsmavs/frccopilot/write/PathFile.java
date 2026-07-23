@@ -60,7 +60,8 @@ public final class PathFile {
         return new PathFile(root.deepCopy());
     }
 
-    JsonNode root() {
+    /** The underlying JSON tree (read view), e.g. for diffing before/after an edit. */
+    public JsonNode root() {
         return root;
     }
 
