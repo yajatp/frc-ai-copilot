@@ -1,0 +1,15 @@
+// Module 2 — Team/Robot Profile layer.
+apply plugin: 'application'
+
+dependencies {
+    implementation project(':core-ingest')
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.17.2'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'org.mercsmavs.frccopilot.profile.ProfileCli'
+}
