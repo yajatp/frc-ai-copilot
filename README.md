@@ -8,7 +8,9 @@ edits robot code, runs it in sim/replay, verifies against success criteria, and 
 It ships as an MCP server + Claude Code skills (Claude Code is the harness — we make it
 FRC-fluent, we don't build a coding agent).
 
-> Status: early build. Modules 1–3 are implemented and tested; see the plan for the full roadmap.
+> Status: all core modules (1–6) + the MCP server are implemented and tested. The agentic
+> closed loop's observe→verify path is proven on the 254 "auto scores 0 balls" case. See the plan
+> for what deepens next (real Echo sim-in-the-loop, live-NT tooling in the server).
 
 ## Why this exists
 Teams do not recompile robot code at competition — they tweak autonomous paths. So the tool has
@@ -25,10 +27,10 @@ two modes:
 | 1 · `core-ingest` | ✅ built + tested | `.wpilog` parsing via WPILib `DataLogReader`; SQLite trend store (no re-parsing for season queries) |
 | 2 · `profile` | ✅ built + tested | Team/robot profile **bootstrapped** from the repo (pathplanner settings, `*Constants.java` CAN IDs, vendordeps) |
 | 3 · `analysis` | ✅ built + tested | Primitive, composable analysis with epistemic guardrails (power/brownout, CAN health, statistics) |
-| 4 · write-layer | ⏳ planned | PathPlanner `.path`/`.auto` writer + safety-scoped tunable NT writes |
-| 5 · `live-nt` | ⏳ planned | NT4 live telemetry |
-| 6 · `simreplay` | ⏳ planned | The agentic closed-loop code improvement (replay → sim → assertions → regression suite) |
-| — · `mcp-server` | ⏳ planned | Wires tools over MCP stdio + skills |
+| 4 · `write-layer` | ✅ built + tested | PathPlanner `.path` reader/writer; propose waypoint/timing edits as reviewable diffs, dry-run by default |
+| 5 · `live-nt` | ✅ built + tested | NT4 live telemetry (read) + a safety-scoped write boundary: default-deny whitelist, hard denylist that beats misconfig, doubles-only, no CLI write |
+| 6 · `simreplay` | ✅ built + tested | The agentic closed loop's observe→verify core: assertion framework (phase-aware) + regression suite + sim/replay runner |
+| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing 13 tools from Modules 1–4 + 6; `get_guide` discovery |
 
 ## Build
 Requires the WPILib 2026 install (provides the JDK + offline Maven repo). Everything stays
