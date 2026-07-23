@@ -5,6 +5,8 @@ dependencies {
     // WPILib log parsing (DataLogReader) + geometry/struct decoding.
     implementation "edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}"
     implementation "edu.wpi.first.wpimath:wpimath-java:${wpilibVersion}"
+    implementation "edu.wpi.first.wpiunits:wpiunits-java:${wpilibVersion}" // units types on the geometry API
+    implementation 'us.hebi.quickbuf:quickbuf-runtime:1.4' // wpimath geometry static init (protobuf)
 
     // Persistent trend store + config parsing.
     implementation 'org.xerial:sqlite-jdbc:3.46.1.0'

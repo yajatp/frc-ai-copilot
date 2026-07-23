@@ -127,7 +127,14 @@ public final class WpilogReader {
                 case "string[]":
                     return record.getStringArray();
                 default:
-                    // struct:*, structschema, msgpack, raw, or anything else: hand back raw bytes.
+                    // struct:* geometry/kinematics types get decoded to real objects; everything
+                    // else (structschema, msgpack, custom structs, raw) falls back to raw bytes.
+                    if (StructDecoder.isStructType(type)) {
+                        Object decoded = StructDecoder.decode(type, record.getRaw());
+                        if (decoded != null) {
+                            return decoded;
+                        }
+                    }
                     return record.getRaw();
             }
         } catch (Exception e) {
