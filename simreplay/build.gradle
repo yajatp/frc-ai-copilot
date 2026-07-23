@@ -4,6 +4,7 @@ apply plugin: 'application'
 dependencies {
     implementation project(':core-ingest')
     implementation project(':analysis')
+    implementation "edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}" // DataLogWriter for demo logs
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.17.2'
 
@@ -14,3 +15,28 @@ dependencies {
 application {
     mainClass = 'org.mercsmavs.frccopilot.simreplay.LoopCli'
 }
+
+// Natives only needed for the demo log generator (DataLogWriter). Reading/checking is pure Java.
+configurations {
+    natives
+}
+
+dependencies {
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+}
+
+def nativesDir = layout.buildDirectory.dir('natives')
+
+def extractNatives = tasks.register('extractNatives', Copy) {
+    from { configurations.natives.collect { zipTree(it) } }
+    include '**/*.dylib'
+    eachFile { it.path = it.name }
+    includeEmptyDirs = false
+    into nativesDir
+}
+
+tasks.named('run') {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
+
