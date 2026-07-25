@@ -43,7 +43,8 @@ public final class BatteryHealth {
         double projected = endV;
         if (spanS > 1) {
             double droopPerSec = droop / spanS;
-            projected = startV - droopPerSec * 150.0;
+            // Clamp to a physically sane range; a very short log extrapolated to 150s can overshoot.
+            projected = Math.max(0, Math.min(startV, startV - droopPerSec * 150.0));
         }
 
         StringBuilder sb = new StringBuilder();

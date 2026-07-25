@@ -1,0 +1,7 @@
+// "Big AI trains a small AI" — a tiny trainable model over labeled log examples (254's technique).
+apply plugin: 'java'
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

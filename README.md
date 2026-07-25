@@ -24,13 +24,16 @@ two modes:
 ## Modules
 | Module | Status | What it does |
 |---|---|---|
-| 1 · `core-ingest` | ✅ built + tested | `.wpilog` parsing via WPILib `DataLogReader`; SQLite trend store (no re-parsing for season queries) |
-| 2 · `profile` | ✅ built + tested | Team/robot profile **bootstrapped** from the repo (pathplanner settings, `*Constants.java` CAN IDs, vendordeps) |
-| 3 · `analysis` | ✅ built + tested | Primitive, composable analysis with epistemic guardrails (power/brownout, CAN health, statistics) |
-| 4 · `write-layer` | ✅ built + tested | PathPlanner `.path` reader/writer; propose waypoint/timing edits as reviewable diffs, dry-run by default |
-| 5 · `live-nt` | ✅ built + tested | NT4 live telemetry (read) + a safety-scoped write boundary: default-deny whitelist, hard denylist that beats misconfig, doubles-only, no CLI write |
-| 6 · `simreplay` | ✅ built + tested | The agentic closed loop's observe→verify core: assertion framework (phase-aware) + regression suite + sim/replay runner |
-| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing 13 tools from Modules 1–4 + 6; `get_guide` discovery |
+| 1 · `core-ingest` | ✅ built + tested | `.wpilog` parsing (`DataLogReader`) + struct decoding (Pose2d/SwerveModuleState/…) + SQLite trend store + TBA client + `.revlog` cross-correlation sync |
+| 2 · `profile` | ✅ built + tested | Team/robot profile **bootstrapped** from the repo (pathplanner settings, CAN IDs, vendordeps) + bundled field/game data + mechanisms |
+| 3 · `analysis` | ✅ built + tested | 15 composable primitives with epistemic guardrails: power/brownout, CAN, battery, loop-timing, swerve/PID, vision, cycle-time, anomaly/peaks/correlate/compare |
+| 4 · `write-layer` | ✅ built + tested | PathPlanner `.path` + `.auto` editing as reviewable diffs (dry-run by default) + `DeployGate` |
+| 5 · `live-nt` | ✅ built + tested | NT4 live telemetry (read) + safety-scoped write boundary (default-deny whitelist, hard denylist, doubles-only, no CLI write) |
+| 6 · `simreplay` | ✅ built + tested | Agentic closed loop observe→verify: phase-aware assertions + regression suite + sim/replay runner |
+| — · `modes` | ✅ built + tested | Mode A between-match orchestrator (flags + persists metrics to the trend store) |
+| — · `smallmodel` | ✅ built + tested | "Big-AI-trains-small-AI": tiny logistic model over hand-labeled log examples |
+| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **21 tools**; `get_guide` discovery |
+| — · `vscode-extension` | ✅ compiles | VS Code extension that builds/registers the MCP server |
 
 ## Build
 Requires the WPILib 2026 install (provides the JDK + offline Maven repo). Everything stays
