@@ -18,8 +18,10 @@ import org.mercsmavs.frccopilot.analysis.SwerveAnalysis;
 import org.mercsmavs.frccopilot.analysis.VisionAnalysis;
 import org.mercsmavs.frccopilot.ingest.LogEntry;
 import org.mercsmavs.frccopilot.ingest.WpilogReader;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import org.mercsmavs.frccopilot.ingest.store.LogSummary;
 import org.mercsmavs.frccopilot.ingest.store.TrendStore;
+import org.mercsmavs.frccopilot.livent.NtClient;
 import org.mercsmavs.frccopilot.modes.ModeA;
 import org.mercsmavs.frccopilot.profile.ProfileMapper;
 import org.mercsmavs.frccopilot.profile.RobotProfile;
@@ -163,6 +165,28 @@ final class ToolRegistry {
                         new Schemas.Prop("file", "string", "Path to a .wpilog", true),
                         new Schemas.Prop("entry", "string", "Signal name", true)),
                 ToolRegistry::anomaly));
+
+        add(tools, new SimpleTool("nt_status", "Connect to a live robot's NetworkTables server and"
+                + " report whether the connection is up (live/real-time; read-only).",
+                Schemas.object(
+                        new Schemas.Prop("host", "string", "Robot NT server host/IP (e.g. 10.TE.AM.2 or localhost)", true),
+                        new Schemas.Prop("port", "integer", "NT4 port (default 5810)", false)),
+                ToolRegistry::ntStatus));
+
+        add(tools, new SimpleTool("nt_get", "Read a single live value from NetworkTables by key"
+                + " (read-only; the copilot never writes actuator/enable values).",
+                Schemas.object(
+                        new Schemas.Prop("host", "string", "Robot NT server host/IP", true),
+                        new Schemas.Prop("key", "string", "Topic key, e.g. /SmartDashboard/x", true),
+                        new Schemas.Prop("port", "integer", "NT4 port (default 5810)", false)),
+                ToolRegistry::ntGet));
+
+        add(tools, new SimpleTool("nt_keys", "List live NetworkTables keys (optionally by prefix).",
+                Schemas.object(
+                        new Schemas.Prop("host", "string", "Robot NT server host/IP", true),
+                        new Schemas.Prop("prefix", "string", "Key prefix filter (optional)", false),
+                        new Schemas.Prop("port", "integer", "NT4 port (default 5810)", false)),
+                ToolRegistry::ntKeys));
 
         add(tools, new SimpleTool("auto_show", "Summarize a PathPlanner .auto (path references).",
                 Schemas.object(new Schemas.Prop("auto", "string", "Path to a .auto file", true)),
@@ -374,6 +398,46 @@ final class ToolRegistry {
         WpilogReader r = new WpilogReader(str(a, "file"));
         Series s = Series.fromSamples(r.read(str(a, "entry")));
         return AnomalyDetection.detect(s).assessment();
+    }
+
+    private static int ntPort(JsonNode a) {
+        return a.hasNonNull("port") ? a.get("port").asInt() : NetworkTableInstance.kDefaultPort4;
+    }
+
+    private static String ntStatus(JsonNode a) {
+        try (NtClient client = new NtClient()) {
+            client.connect("frc-ai-copilot", str(a, "host"), ntPort(a));
+            boolean up = client.waitForConnection(3.0);
+            return up ? "Connected to " + str(a, "host") + " (" + client.connections().size() + " connection(s))."
+                    : "Not connected to " + str(a, "host") + " within 3s (robot off / wrong host?).";
+        }
+    }
+
+    private static String ntGet(JsonNode a) {
+        try (NtClient client = new NtClient()) {
+            client.connect("frc-ai-copilot", str(a, "host"), ntPort(a));
+            if (!client.waitForConnection(3.0)) {
+                return "Not connected to " + str(a, "host") + " within 3s.";
+            }
+            String key = str(a, "key");
+            var value = client.getValue(key);
+            return value.isValid() ? key + " = " + value.getValue() : key + " (no value / not published).";
+        }
+    }
+
+    private static String ntKeys(JsonNode a) {
+        try (NtClient client = new NtClient()) {
+            client.connect("frc-ai-copilot", str(a, "host"), ntPort(a));
+            if (!client.waitForConnection(3.0)) {
+                return "Not connected to " + str(a, "host") + " within 3s.";
+            }
+            String prefix = a.hasNonNull("prefix") ? a.get("prefix").asText() : "";
+            var keys = client.keys(prefix);
+            if (keys.isEmpty()) {
+                return "(no keys" + (prefix.isEmpty() ? "" : " under " + prefix) + " yet — topics announce shortly after connect)";
+            }
+            return String.join("\n", keys);
+        }
     }
 
     private static String autoShow(JsonNode a) throws Exception {
