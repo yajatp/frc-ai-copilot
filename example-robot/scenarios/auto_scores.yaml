@@ -1,0 +1,19 @@
+name: auto_scores_balls
+description: >-
+  Autonomous must score a non-zero number of balls and reach the 5-ball target during AUTO.
+  Reproduces Team 254's "broken auto" case: a shoot action mis-mapped to a pass scores 0.
+assertions:
+- signal: /Autonomous/BallsScored
+  aggregation: MAX
+  op: GT
+  threshold: 0.0
+  phaseSignal: /Robot/State
+  phaseEquals: AUTO
+  description: auto scores non-zero
+- signal: /Autonomous/BallsScored
+  aggregation: MAX
+  op: GE
+  threshold: 5.0
+  phaseSignal: /Robot/State
+  phaseEquals: AUTO
+  description: auto meets the 5-ball target

@@ -1,0 +1,55 @@
+// A small, self-contained WPILib command-based robot that runs headless in the WPILib simulation
+// HAL and produces a real .wpilog — used to demonstrate the agentic closed loop end-to-end.
+apply plugin: 'application'
+
+dependencies {
+    implementation "edu.wpi.first.wpilibj:wpilibj-java:${wpilibVersion}"
+    implementation "edu.wpi.first.wpilibNewCommands:wpilibNewCommands-java:${wpilibVersion}"
+    implementation "edu.wpi.first.wpimath:wpimath-java:${wpilibVersion}"
+    implementation "edu.wpi.first.hal:hal-java:${wpilibVersion}"
+    implementation "edu.wpi.first.ntcore:ntcore-java:${wpilibVersion}"
+    implementation "edu.wpi.first.cameraserver:cameraserver-java:${wpilibVersion}"
+    implementation "edu.wpi.first.cscore:cscore-java:${wpilibVersion}"
+    implementation "edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}"
+    implementation "edu.wpi.first.wpiunits:wpiunits-java:${wpilibVersion}"
+    implementation 'us.hebi.quickbuf:quickbuf-runtime:1.4'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'org.mercsmavs.frccopilot.examplerobot.HeadlessSim'
+}
+
+configurations {
+    natives
+}
+
+dependencies {
+    natives "edu.wpi.first.hal:hal-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.wpimath:wpimath-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.ntcore:ntcore-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.wpinet:wpinet-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+}
+
+def nativesDir = layout.buildDirectory.dir('natives')
+
+def extractNatives = tasks.register('extractNatives', Copy) {
+    from { configurations.natives.collect { zipTree(it) } }
+    include '**/*.dylib'
+    eachFile { it.path = it.name }
+    includeEmptyDirs = false
+    into nativesDir
+}
+
+tasks.named('run') {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
+
+tasks.withType(Test).configureEach {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
