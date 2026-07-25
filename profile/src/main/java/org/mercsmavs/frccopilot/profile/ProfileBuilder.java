@@ -59,6 +59,11 @@ public final class ProfileBuilder {
         String robot = robotOverride != null ? robotOverride : repoRoot.getFileName().toString();
 
         List<String> subsystems = listSubsystems(repoRoot);
+        // Seed mechanism entries from subsystem names; heights left null for a human to fill in.
+        List<RobotProfile.Mechanism> mechanisms = subsystems == null ? null
+                : subsystems.stream()
+                        .map(s -> new RobotProfile.Mechanism(s, null, null, null))
+                        .toList();
         FieldProfile field = readField(repoRoot, game, warnings);
 
         RobotProfile profile =
@@ -72,7 +77,8 @@ public final class ProfileBuilder {
                         devices,
                         subsystems,
                         field,
-                        warnings.isEmpty() ? null : new ArrayList<>(warnings));
+                        warnings.isEmpty() ? null : new ArrayList<>(warnings),
+                        mechanisms);
         return new Result(profile, warnings);
     }
 

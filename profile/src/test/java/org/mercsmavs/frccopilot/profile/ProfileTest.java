@@ -78,15 +78,39 @@ class ProfileTest {
                         List.of(new Device(51, "left motor CAN ID", "flywheel", "CTRE", "ShooterConstants.java", true)),
                         List.of("shooter", "intake", "drive"),
                         new FieldProfile("REBUILT", 2026, "k2025ReefscapeWelded", null, null),
-                        List.of("test note"));
+                        List.of("test note"),
+                        List.of(new RobotProfile.Mechanism("hopper", "roller", 1, 0.9)));
 
         Path file = tmp.resolve("6369.yaml");
         ProfileMapper.write(p, file, "header line");
         RobotProfile back = ProfileMapper.read(file);
 
+        assertEquals(0.9, back.mechanisms().get(0).maxHeightMeters(), 1e-9);
         assertEquals(6369, back.team());
         assertEquals("krakenX60FOC", back.drivetrain().driveMotor());
         assertEquals(1, back.devices().size());
         assertEquals("k2025ReefscapeWelded", back.field().aprilTagField());
+    }
+
+    @Test
+    void gameDataHasSaneValues() {
+        GameProfile rebuilt = GameData.forSeason(2026).orElseThrow();
+        assertEquals(2026, rebuilt.season());
+        assertTrue(rebuilt.fieldLengthM() > 0 && rebuilt.fieldWidthM() > 0);
+        assertEquals(150.0, rebuilt.matchSeconds(), 1e-9);
+        assertTrue(rebuilt.obstacles().stream().anyMatch(o -> o.name().equals("trench")));
+        // 2025 also present; an unknown season returns empty.
+        assertTrue(GameData.forSeason(2025).isPresent());
+        assertTrue(GameData.forSeason(1999).isEmpty());
+    }
+
+    @Test
+    void profileWithoutMechanismsStillLoads(@TempDir Path tmp) throws Exception {
+        // Backward compatibility: YAML generated before the mechanisms field must still parse.
+        Path f = tmp.resolve("old.yaml");
+        java.nio.file.Files.writeString(f, "team: 6369\nrobot: Old\nseason: 2026\ngame: REBUILT\n");
+        RobotProfile back = ProfileMapper.read(f);
+        assertEquals(6369, back.team());
+        assertEquals(null, back.mechanisms());
     }
 }

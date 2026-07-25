@@ -22,7 +22,15 @@ public record RobotProfile(
         List<Device> devices,
         List<String> subsystems,
         FieldProfile field,
-        List<String> notes) {
+        List<String> notes,
+        List<Mechanism> mechanisms) {
+
+    /**
+     * A robot mechanism relevant to field-clearance reasoning (e.g. a hopper whose height must fit
+     * under a trench). Heights are left null for a human to fill in — we don't guess them.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Mechanism(String name, String type, Integer degreesOfFreedom, Double maxHeightMeters) {}
 
     /** Swerve drivetrain physical parameters (primarily sourced from pathplanner/settings.json). */
     @JsonInclude(JsonInclude.Include.NON_NULL)
