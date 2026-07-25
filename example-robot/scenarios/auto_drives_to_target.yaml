@@ -1,0 +1,13 @@
+name: auto_drives_to_target
+description: >-
+  Autonomous must physically drive the (maple-sim, dyn4j-simulated) chassis to within 1 m of the
+  scoring pose during AUTO. Reproduces a "drive axis inverted" wiring bug: the translation command
+  is negated, so the robot accelerates away from the target instead of toward it.
+assertions:
+- signal: /Drivetrain/DistanceToTarget
+  aggregation: LAST
+  op: LT
+  threshold: 1.0
+  phaseSignal: /Robot/State
+  phaseEquals: AUTO
+  description: auto ends within 1 m of the scoring pose

@@ -12,6 +12,9 @@ subprojects {
         // WPILib ships a full offline Maven repo with its 2026 artifacts.
         maven { url = uri('file://' + System.getProperty('user.home') + '/wpilib/2026/maven') }
         mavenCentral()
+        // maple-sim (physics-based swerve drivetrain simulation) publishes releases here per its
+        // WPILib vendordep JSON (https://shenzhen-robotics-alliance.github.io/maple-sim/vendordep/maple-sim.json).
+        maven { url = uri('https://shenzhen-robotics-alliance.github.io/maple-sim/vendordep/repos/releases') }
     }
 
     java {

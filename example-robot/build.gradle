@@ -14,6 +14,12 @@ dependencies {
     implementation "edu.wpi.first.wpiunits:wpiunits-java:${wpilibVersion}"
     implementation 'us.hebi.quickbuf:quickbuf-runtime:1.4'
 
+    // maple-sim: physics-based (dyn4j) swerve drivetrain simulation, so the headless demo drives a
+    // real simulated chassis instead of an odometry-free mechanism stub.
+    implementation "org.ironmaple:maplesim-java:${maplesimVersion}"
+    implementation 'org.dyn4j:dyn4j:5.0.2'
+    implementation 'org.ejml:ejml-simple:0.44.0' // maplesim-java's own build depends on this but its published pom omits it
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

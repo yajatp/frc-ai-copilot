@@ -65,6 +65,21 @@ collisions (254's use case), add [maple-sim](https://github.com/Shenzhen-Robotic
 (MIT) as a vendordep and back the drive/IO sim with its `SwerveDriveSimulation`. It's an
 opt-in upgrade per robot, gated on need — not required for the loop to function.
 
+`example-robot` demonstrates this concretely: `DriveSubsystem` wraps a real
+`SwerveDriveSimulation` (dyn4j rigid-body physics — mass, momentum, field-boundary
+collisions), and `DriveAuto` drives it toward a fixed scoring pose with `broken` negating
+the translation command (a "drive axis inverted" wiring bug). `HeadlessSim` logs
+`/Drivetrain/Pose/{X,Y}` and `/Drivetrain/DistanceToTarget`, and
+`example-robot/scenarios/auto_drives_to_target.yaml` asserts the auto ends within 1 m of
+the target — FAILing on the broken build (physics carries the robot ~4 m off course) and
+PASSing on the fixed one. Since the drivetrain is real dyn4j physics rather than a
+kinematic stub, the failure distance is whatever the sim's inertia/damping actually
+produces, not a scripted number. Gradle wiring: root `build.gradle` adds maple-sim's
+vendordep-published Maven repo; `example-robot/build.gradle` depends on
+`org.ironmaple:maplesim-java`, `org.dyn4j:dyn4j`, and `org.ejml:ejml-simple` (the last two
+are maple-sim's own runtime deps — its published `.pom` omits them, so they must be added
+explicitly or you'll hit `NoClassDefFoundError` at first use).
+
 ## big-AI-small-AI
 
 When a decision is better learned than coded (254's "when to stage balls"), use the
