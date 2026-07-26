@@ -208,16 +208,24 @@ final class ToolRegistry {
 
     private static String guide(JsonNode a) {
         return """
-                FRC AI Copilot — MCP server (Modules 1–4).
+                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT; 24 tools total).
 
                 Workflow:
                   1) Call profile_show on the team's robot profile so analysis is robot-specific
                      (CAN map, drivetrain, current limit, subsystems).
                   2) Use log_info / log_entries / read_entry to explore a match log.
-                  3) Use power_analysis and can_health for the Mode-A safety picture (brownouts,
-                     battery, CAN) — the 2026 energy-management meta.
-                  4) Use pathplanner_show / pathplanner_fudge / pathplanner_set_speed to propose
+                  3) Use power_analysis, can_health, battery_health, and loop_timing for the Mode-A
+                     safety picture (brownouts, battery, CAN, loop overruns) — the 2026
+                     energy-management meta. mode_a runs this whole pass in one call and persists
+                     metrics to a trend store.
+                  4) Use swerve_analysis, vision_analysis, and anomaly for deeper Mode-B diagnosis
+                     when there's time to chase a specific hypothesis.
+                  5) Use pathplanner_show/fudge/set_speed and auto_show/auto_swap_path to propose
                      autonomous adjustments (the only thing teams change at competition).
+                  6) Use loop_check/loop_suite to verify a robot-code fix against a written
+                     success criterion (or a whole regression suite) before calling it done.
+                  7) Use nt_status/nt_get/nt_keys to read a live, running robot's NetworkTables
+                     (read-only — there is no NT write tool).
 
                 Epistemic guardrails: every analysis result carries a data-quality/confidence block
                 and hedged language. A single match is rarely conclusive — corroborate across matches.

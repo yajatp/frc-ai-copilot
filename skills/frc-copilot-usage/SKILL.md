@@ -1,11 +1,11 @@
 ---
 name: frc-copilot-usage
-description: How to use the frc-ai-copilot MCP server's tools (get_guide, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis, can_health, pathplanner_show/pathplanner_fudge/pathplanner_set_speed) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, or propose autonomous path/speed tweaks for Team 6369 or 6773.
+description: How to use the frc-ai-copilot MCP server's 24 tools (get_guide, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, pathplanner_show/fudge/set_speed, auto_show/auto_swap_path, loop_check/loop_suite, mode_a, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
 ---
 
 # Using the frc-ai-copilot MCP tools
 
-The `frc-copilot` MCP server exposes 10 tools over stdio (see `docs/SETUP.md` for registration).
+The `frc-copilot` MCP server exposes 24 tools over stdio (see `docs/SETUP.md` for registration).
 This skill is about *how* to sequence them, not what each one does internally — see the tool
 descriptions themselves (`tools/list`) for exact schemas.
 
@@ -19,9 +19,28 @@ descriptions themselves (`tools/list`) for exact schemas.
 | `ingest_log` | `db`, `file` | Persist a log's summary + entry index into a SQLite trend store. |
 | `power_analysis` | `file` | Brownout/battery analysis — hedged, quality-scored. |
 | `can_health` | `file` | CAN error-count trend — hedged. |
+| `battery_health` | `file` | Battery droop / internal-resistance indicator, hedged end-of-match sag projection. |
+| `loop_timing` | `file` | Loop overrun analysis (vs 20 ms) from a loop-period signal. |
+| `swerve_analysis` | `file`, `entry?` | Detect underdamped/oscillating closed-loop behavior (hedged PID guidance). |
+| `vision_analysis` | `file` | Vision detection rate / dropouts from a hasTarget or tag-count signal. |
+| `anomaly` | `file`, `entry` | Robust (MAD) outlier detection on one signal. |
 | `pathplanner_show` | `path` | Summarize a `.path` file's waypoints/constraints. |
 | `pathplanner_fudge` | `path`, `index`, `dx`, `dy`, `out?` | Propose shifting one waypoint by (dx, dy) meters. Dry-run unless `out` given. |
 | `pathplanner_set_speed` | `path`, `maxVelocity`, `maxAcceleration`, `out?` | Propose new global speed/accel constraints. Dry-run unless `out` given. |
+| `auto_show` | `auto` | Summarize a `.auto` file's path references. |
+| `auto_swap_path` | `auto`, `oldName`, `newName`, `out?` | Propose swapping a path reference in a `.auto`. Dry-run unless `out` given. |
+| `loop_check` | `log`, `scenario` | Verify one scenario's success criteria against a log — the closed loop's "verify" step. |
+| `loop_suite` | `log`, `scenarioDir` | Run a whole regression suite (a directory of scenarios) against a log. |
+| `mode_a` | `db`, `file` | Run the full Mode A between-match pass and persist metrics to the trend store (wraps `power_analysis`/`battery_health`/`can_health`/`loop_timing`). |
+| `nt_status` | `host`, `port?` | Check whether a live robot's NetworkTables connection is up. Read-only. |
+| `nt_get` | `host`, `key`, `port?` | Read one live NetworkTables value by key. Read-only. |
+| `nt_keys` | `host`, `prefix?`, `port?` | List live NetworkTables keys, optionally by prefix. Read-only. |
+
+`nt_status`/`nt_get`/`nt_keys` are the only tools that touch a *live* robot rather than a log
+file — useful in the pit or on the practice field, not just post-hoc. There is no NT write tool;
+the server never writes to a running robot. `loop_check`/`loop_suite`/`mode_a` wrap
+`simreplay`/`modes` directly, so a whole Mode-A pass or a saved regression suite is one call
+instead of manually chaining the individual analysis tools.
 
 ## Always start here
 
@@ -92,14 +111,23 @@ No time pressure. This is where season-long and multi-log reasoning happens.
   exactly for `read_entry` even though `filter` is fuzzy.
 - Cross-reference with `profile_show` when interpreting a specific subsystem's raw samples (e.g.
   is a current spike on `/Intake/...` within that subsystem's configured stator limit?).
-- **`pathplanner_show`** across every path/auto in the deploy tree for off-season path cleanup —
-  not just one-off fudges, but auditing rotation targets, constraint zones, and event-marker
-  timing holistically now that there's time to think about it.
-- This skill covers Modules 1–4 (ingestion, profile, analysis primitives, PathPlanner write
-  layer) as currently exposed by the server. Deeper Mode-B capability — swerve/PID oscillation
-  analysis, replay-drift, the sim/replay agentic fix loop, a persistent regression suite — is
-  planned (Modules 5/6) and will show up as new tools; re-check `tools/list` (or `get_guide`) as
-  the server evolves rather than assuming this table is exhaustive forever.
+- **`pathplanner_show`** / **`auto_show`** across every path/auto in the deploy tree for
+  off-season path cleanup — not just one-off fudges, but auditing rotation targets, constraint
+  zones, and event-marker timing holistically now that there's time to think about it.
+- **`swerve_analysis`**, **`vision_analysis`**, **`loop_timing`**, **`battery_health`**, and
+  **`anomaly`** are the deeper diagnostic primitives that don't belong in a rushed between-match
+  pass — use them here to chase down a specific hypothesis (e.g. "is module 3 oscillating?",
+  "is our vision dropping out during a specific auto phase?").
+- **`loop_check(log, scenario)`** / **`loop_suite(log, scenarioDir)`** are the closed-loop
+  "verify" step (see `frc-sim-in-the-loop`): after proposing and testing a robot-code fix in
+  sim/replay, check the resulting log against a written success criterion — or a whole banked
+  regression suite — before considering the fix done. This is what makes "the agent edited the
+  code" a checked claim instead of a guess.
+- This skill covers every tool the server currently exposes (Modules 1–6, `modes`, and `live-nt`
+  — 24 tools as of this writing). `smallmodel` (the big-AI-trains-small-AI technique) is built and
+  tested but not yet wired into an MCP tool. Tool count and shape will keep changing as the
+  server grows; re-check `tools/list` (or `get_guide`) rather than assuming this table is
+  exhaustive forever.
 
 ## Epistemic guardrails (non-negotiable)
 
