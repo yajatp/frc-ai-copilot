@@ -3,6 +3,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { ChatViewProvider } from './ChatViewProvider';
 
 /**
  * FRC AI Copilot extension.
@@ -26,6 +27,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('frcCopilot.buildServer', () => buildServer(context, output)),
     vscode.commands.registerCommand('frcCopilot.showConfig', () => showConfig(context)),
     vscode.commands.registerCommand('frcCopilot.locateJdk', () => locateJdkCommand())
+  );
+
+  const projectRoot = resolveProjectRoot(context);
+  const chatProvider = new ChatViewProvider(context.extensionUri, projectRoot);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatProvider)
   );
 }
 

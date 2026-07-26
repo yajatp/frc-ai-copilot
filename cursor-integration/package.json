@@ -1,0 +1,9 @@
+{
+  "name": "frc-ai-copilot-cursor-integration",
+  "version": "1.0.0",
+  "description": "Integration script for registering FRC AI Copilot with Cursor IDE",
+  "main": "install.js",
+  "scripts": {
+    "install-cursor-mcp": "node install.js"
+  }
+}

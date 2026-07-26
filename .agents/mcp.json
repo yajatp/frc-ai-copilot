@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "frc-ai-copilot": {
+      "command": "/Users/yajatparmar/code/6369/frc ai copilot/mcp-server/build/install/mcp-server/bin/mcp-server",
+      "args": [],
+      "env": {
+        "JAVA_HOME": "/Users/yajatparmar/wpilib/2026/jdk"
+      }
+    }
+  }
+}

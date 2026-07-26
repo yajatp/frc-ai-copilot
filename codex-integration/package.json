@@ -1,0 +1,12 @@
+{
+  "name": "frc-ai-copilot-codex-integration",
+  "version": "1.0.0",
+  "description": "Integration script for registering FRC AI Copilot with Codex AI",
+  "main": "install.js",
+  "scripts": {
+    "install-codex-mcp": "node install.js"
+  },
+  "dependencies": {
+    "@iarna/toml": "^2.2.5"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "frc-ai-copilot-antigravity-integration",
+  "version": "1.0.0",
+  "description": "Integration script for registering FRC AI Copilot with Antigravity IDE",
+  "main": "install.js",
+  "scripts": {
+    "install-antigravity-mcp": "node install.js"
+  }
+}

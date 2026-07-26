@@ -62,7 +62,7 @@ the **project root** so it's shared by anyone who checks out the repo:
 {
   "mcpServers": {
     "frc-copilot": {
-      "command": "/Users/yajatparmar/code/frc ai copilot/mcp-server/build/install/mcp-server/bin/mcp-server",
+      "command": "/Users/yajatparmar/code/6369/frc ai copilot/mcp-server/build/install/mcp-server/bin/mcp-server",
       "env": {
         "JAVA_HOME": "/Users/yajatparmar/wpilib/2026/jdk"
       }
@@ -86,7 +86,7 @@ Notes on this config:
   ```bash
   claude mcp add frc-copilot \
     --env JAVA_HOME=/Users/yajatparmar/wpilib/2026/jdk \
-    -- "/Users/yajatparmar/code/frc ai copilot/mcp-server/build/install/mcp-server/bin/mcp-server"
+    -- "/Users/yajatparmar/code/6369/frc ai copilot/mcp-server/build/install/mcp-server/bin/mcp-server"
   ```
   Add `--scope user` if you want it available across every project on your machine instead of
   just this one.

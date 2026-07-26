@@ -32,7 +32,25 @@
         "title": "FRC AI Copilot: Locate WPILib JDK",
         "category": "FRC AI Copilot"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "frc-copilot-container",
+          "title": "FRC Copilot",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "frc-copilot-container": [
+        {
+          "type": "webview",
+          "id": "frcCopilot.chatView",
+          "name": "Gemini Chat"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
@@ -43,5 +61,10 @@
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "@google/generative-ai": "^0.21.0",
+    "marked": "^15.0.0"
   }
 }
