@@ -32,7 +32,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 case 'sendMessage':
                     const apiKey = vscode.workspace.getConfiguration('frcCopilot').get<string>('geminiApiKey');
                     if (!apiKey) {
-                        this._view?.webview.postMessage({ type: 'receiveMessage', text: '❌ Please configure your Gemini API Key in Settings.' });
+                        this._view?.webview.postMessage({ type: 'receiveMessage', text: '❌ Please configure your Gemini API Key.' });
                         return;
                     }
 
@@ -43,6 +43,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         this._view?.webview.postMessage({ type: 'receiveMessage', text: `❌ Error: ${e.message}` });
                     }
                     break;
+                case 'saveApiKey':
+                    await vscode.workspace.getConfiguration('frcCopilot').update('geminiApiKey', data.value, vscode.ConfigurationTarget.Global);
+                    this._view?.webview.postMessage({ type: 'apiKeySaved' });
+                    break;
                 case 'clearHistory':
                     this.bridge.clearHistory();
                     break;
@@ -51,6 +55,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview() {
+        const apiKey = vscode.workspace.getConfiguration('frcCopilot').get<string>('geminiApiKey');
+        const hasKey = !!apiKey && apiKey.trim().length > 0;
+
         return `<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -68,6 +75,39 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         height: 100vh;
                         box-sizing: border-box;
                         margin: 0;
+                    }
+                    .hidden { display: none !important; }
+                    
+                    /* Landing Page */
+                    #landing-container {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        height: 100%;
+                        text-align: center;
+                        padding: 20px;
+                    }
+                    #landing-container h2 {
+                        margin-bottom: 10px;
+                    }
+                    #landing-container p {
+                        margin-bottom: 20px;
+                        opacity: 0.8;
+                    }
+                    .api-input-group {
+                        display: flex;
+                        flex-direction: column;
+                        width: 100%;
+                        max-width: 300px;
+                        gap: 10px;
+                    }
+                    
+                    /* Chat Page */
+                    #chat-wrapper {
+                        display: flex;
+                        flex-direction: column;
+                        height: 100%;
                     }
                     #chat-container {
                         flex: 1;
@@ -122,21 +162,57 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 </style>
             </head>
             <body>
-                <div id="chat-container">
-                    <div class="message assistant">Hello! I'm the FRC AI Copilot powered by Gemini. Ask me about your robot logs!</div>
+                <!-- LANDING PAGE -->
+                <div id="landing-container" class="${hasKey ? 'hidden' : ''}">
+                    <h2>🤖 FRC AI Copilot</h2>
+                    <p>Welcome! To get started, please enter your Google AI Studio API Key (Gemini).</p>
+                    <div class="api-input-group">
+                        <input type="password" id="api-key-input" placeholder="Enter API Key..." />
+                        <button id="save-key-button">Save API Key</button>
+                    </div>
                 </div>
-                <div id="input-container">
-                    <input type="text" id="chat-input" placeholder="Ask about logs or CAN health..." />
-                    <button id="send-button">Send</button>
-                    <button id="clear-button">Clear</button>
+
+                <!-- CHAT WRAPPER -->
+                <div id="chat-wrapper" class="${hasKey ? '' : 'hidden'}">
+                    <div id="chat-container">
+                        <div class="message assistant">Hello! I'm the FRC AI Copilot powered by Gemini. Ask me about your robot logs!</div>
+                    </div>
+                    <div id="input-container">
+                        <input type="text" id="chat-input" placeholder="Ask about logs or CAN health..." />
+                        <button id="send-button">Send</button>
+                        <button id="clear-button">Clear</button>
+                    </div>
                 </div>
+
                 <script>
                     const vscode = acquireVsCodeApi();
+                    
+                    // UI Elements
+                    const landingContainer = document.getElementById('landing-container');
+                    const chatWrapper = document.getElementById('chat-wrapper');
+                    
+                    const apiKeyInput = document.getElementById('api-key-input');
+                    const saveKeyBtn = document.getElementById('save-key-button');
+
                     const input = document.getElementById('chat-input');
                     const sendBtn = document.getElementById('send-button');
                     const clearBtn = document.getElementById('clear-button');
                     const chatContainer = document.getElementById('chat-container');
 
+                    // Landing Page Logic
+                    saveKeyBtn.addEventListener('click', () => {
+                        const key = apiKeyInput.value.trim();
+                        if (key) {
+                            saveKeyBtn.textContent = 'Saving...';
+                            vscode.postMessage({ type: 'saveApiKey', value: key });
+                        }
+                    });
+
+                    apiKeyInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') saveKeyBtn.click();
+                    });
+
+                    // Chat Logic
                     function addMessage(text, className) {
                         const div = document.createElement('div');
                         div.className = 'message ' + className;
@@ -160,15 +236,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     });
 
                     input.addEventListener('keypress', (e) => {
-                        if (e.key === 'Enter') {
-                            sendBtn.click();
-                        }
+                        if (e.key === 'Enter') sendBtn.click();
                     });
 
+                    // Message Listener
                     window.addEventListener('message', event => {
                         const message = event.data;
                         if (message.type === 'receiveMessage') {
                             addMessage(message.text, 'assistant');
+                        } else if (message.type === 'apiKeySaved') {
+                            landingContainer.classList.add('hidden');
+                            chatWrapper.classList.remove('hidden');
                         }
                     });
                 </script>
