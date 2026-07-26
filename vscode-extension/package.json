@@ -12,7 +12,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:frcCopilot.chatView"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -50,6 +51,16 @@
           "name": "Gemini Chat"
         }
       ]
+    },
+    "configuration": {
+      "title": "FRC AI Copilot",
+      "properties": {
+        "frcCopilot.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API Key for Google AI Studio (Gemini) to power the Copilot chat."
+        }
+      }
     }
   },
   "scripts": {
