@@ -1,5 +1,6 @@
 package org.mercsmavs.frccopilot.analysis;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,17 +25,31 @@ public final class SignalResolver {
      * candidate that appears as a substring of some entry name, preferring numeric entries.
      */
     public static Optional<String> resolve(Map<Integer, LogEntry> index, List<String> candidates) {
+        List<String> numericNames = index.values().stream()
+                .filter(e -> isNumeric(e.type))
+                .map(e -> e.name)
+                .toList();
+        return resolve(numericNames, candidates);
+    }
+
+    /**
+     * Same intent-based resolution against a flat collection of signal names — the shape live
+     * NetworkTables hands us, where topics are discovered by name rather than through a log index.
+     * Callers are expected to have already filtered to numeric topics; unlike the log index, an NT
+     * topic name carries no type information on its own.
+     *
+     * @param names candidate signal names to search (e.g. NT topic keys)
+     * @param candidates intent substrings, best first (see {@link #VOLTAGE} and friends)
+     */
+    public static Optional<String> resolve(Collection<String> names, List<String> candidates) {
         for (String candidate : candidates) {
             String lower = candidate.toLowerCase();
             String best = null;
-            for (LogEntry e : index.values()) {
-                if (!isNumeric(e.type)) {
-                    continue;
-                }
-                if (e.name.toLowerCase().contains(lower)) {
+            for (String name : names) {
+                if (name.toLowerCase().contains(lower)) {
                     // Prefer the shortest matching name (usually the most direct signal).
-                    if (best == null || e.name.length() < best.length()) {
-                        best = e.name;
+                    if (best == null || name.length() < best.length()) {
+                        best = name;
                     }
                 }
             }

@@ -33,6 +33,7 @@ two modes:
 | — · `modes` | ✅ built + tested | Mode A between-match orchestrator (flags + persists metrics to the trend store) |
 | — · `smallmodel` | ✅ built + tested | "Big-AI-trains-small-AI": tiny logistic model over hand-labeled log examples |
 | — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **21 tools**; `get_guide` discovery |
+| — · `dashboard` | 🚧 phase 1 | Local web UI (loopback, read-only) — live NT telemetry with the analysis primitives running continuously, so health verdicts are visible without asking an AI. See [dashboard/README.md](dashboard/README.md) |
 | — · `vscode-extension` | ✅ compiles | VS Code extension that builds/registers the MCP server |
 
 ## Build

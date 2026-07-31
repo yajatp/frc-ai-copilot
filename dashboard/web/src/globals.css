@@ -1,0 +1,165 @@
+/*
+ * Design system carried over from the ScoutPanda dashboard: the same Linear-derived token set,
+ * so the two team tools look like one family. Components style themselves from these variables
+ * with inline styles rather than utility classes — no Tailwind here, since the token layer is
+ * doing the work.
+ *
+ * Light is the default — a pit is a bright room and the laptop is often on a cart in daylight —
+ * but both themes ship, switched by `data-theme` on the root element.
+ */
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/GeistVF.woff") format("woff-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMonoVF.woff") format("woff-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  /*
+   * Keeps browser-rendered UI (scrollbars, form controls) on the same side as the tokens. Without
+   * it, an OS in dark mode would render grey scrollbars against the light page.
+   */
+  color-scheme: light;
+
+  --theme-bg: #ffffff;
+  --theme-panel: #fafafb;
+  --theme-rail: #f6f7f8;
+  --theme-card: #fafafb;
+  --theme-border: rgba(0, 0, 0, 0.09);
+  --theme-border2: rgba(0, 0, 0, 0.12);
+  --theme-border3: rgba(0, 0, 0, 0.17);
+  --theme-border4: rgba(0, 0, 0, 0.06);
+  --theme-scrollbar: rgba(0, 0, 0, 0.22);
+  --theme-text: #16181a;
+  --theme-text2: #3f444b;
+  --theme-textMuted: #585d64;
+  --theme-textFaint: #6b7076;
+  --theme-textFaint2: #767b82;
+  --theme-textGhost: #c7cbd1;
+  --theme-hover: #f1f2f4;
+  --theme-selected: #eaebee;
+  --theme-track: #e6e8eb;
+  --theme-trackFill: #9aa0a8;
+  --theme-red: #dc2626;
+  --theme-redBg: rgba(220, 38, 38, 0.07);
+  --theme-blue: #2563eb;
+  --theme-blueBg: rgba(37, 99, 235, 0.07);
+  --theme-green: #15803d;
+  --theme-greenBg: rgba(21, 128, 61, 0.07);
+  --theme-amberBorder: rgba(180, 83, 9, 0.3);
+  --theme-amberBg: rgba(245, 158, 11, 0.13);
+  --theme-amberDot: #b45309;
+  --theme-amberText: #8a5a08;
+
+  --accent: #5e6ad2;
+
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --theme-bg: #08090a;
+  --theme-panel: #0f1011;
+  --theme-rail: #0b0c0d;
+  --theme-card: #0f1011;
+  --theme-border: rgba(255, 255, 255, 0.07);
+  --theme-border2: rgba(255, 255, 255, 0.09);
+  --theme-border3: rgba(255, 255, 255, 0.14);
+  --theme-border4: rgba(255, 255, 255, 0.05);
+  --theme-scrollbar: rgba(255, 255, 255, 0.15);
+  --theme-text: #f7f8f8;
+  --theme-text2: #c9cbd1;
+  --theme-textMuted: #8a8f98;
+  --theme-textFaint: #62666d;
+  --theme-textFaint2: #4e5158;
+  --theme-textGhost: #3f4249;
+  --theme-hover: #16181d;
+  --theme-selected: #1e2026;
+  --theme-track: #1b1d22;
+  --theme-trackFill: #5b5e66;
+  --theme-red: #ef4444;
+  --theme-redBg: rgba(239, 68, 68, 0.08);
+  --theme-blue: #3b82f6;
+  --theme-blueBg: rgba(59, 130, 246, 0.08);
+  --theme-green: #4ade80;
+  --theme-greenBg: rgba(74, 222, 128, 0.07);
+  --theme-amberBorder: rgba(245, 158, 11, 0.22);
+  --theme-amberBg: rgba(245, 158, 11, 0.08);
+  --theme-amberDot: #f59e0b;
+  --theme-amberText: #d8c08a;
+
+  --accent: #7c5cff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--theme-bg);
+  color: var(--theme-text);
+  font-family: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--theme-scrollbar);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Micro-label: the uppercase mono caption used above every panel and stat. */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--theme-textFaint);
+}
+
+/* Tabular figures keep live numbers from jittering as digits change. */
+.numeric {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.nav-item:hover {
+  background: var(--theme-hover);
+  color: var(--theme-text);
+}
+
+.row-hover:hover {
+  background: var(--theme-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

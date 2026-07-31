@@ -203,6 +203,46 @@ public final class NtClient implements AutoCloseable {
     }
 
     /**
+     * Like {@link #monitor(Set, BiConsumer)}, but subscribes for <em>every</em> value the publisher
+     * sends rather than whatever the latest happens to be each period.
+     *
+     * <p>This distinction matters for any analysis that counts occurrences instead of reading a
+     * level. NT4's default subscription delivers periodic samples (100 ms), so a 50 Hz signal
+     * arrives decimated ~5:1 — fine for a battery-voltage gauge, wrong for counting loop overruns
+     * or catching a brief current spike, because the samples that were dropped are exactly the ones
+     * that would have been anomalous.
+     *
+     * @param prefixes topic-name prefixes to watch (an empty set watches everything)
+     * @param periodSeconds requested delivery period; the floor on how often batches are sent
+     * @param onChange called with (topicName, newValue) for every matching value change
+     * @return a handle whose {@link AutoCloseable#close()} stops the monitor and drops the
+     *     subscription
+     */
+    public AutoCloseable monitorAll(
+            Set<String> prefixes, double periodSeconds, BiConsumer<String, NetworkTableValue> onChange) {
+        ensureOpen();
+        String[] prefixArray = prefixes.isEmpty() ? new String[] {""} : prefixes.toArray(new String[0]);
+        // The listener alone would inherit default (periodic, latest-only) subscription options, so
+        // the sendAll subscription has to be held explicitly for as long as the monitor lives.
+        MultiSubscriber subscriber =
+                new MultiSubscriber(
+                        inst, prefixArray, PubSubOption.sendAll(true), PubSubOption.periodic(periodSeconds));
+        int listenerHandle =
+                inst.addListener(
+                        prefixArray,
+                        EnumSet.of(NetworkTableEvent.Kind.kValueAll, NetworkTableEvent.Kind.kImmediate),
+                        event -> {
+                            if (event.valueData != null) {
+                                onChange.accept(event.valueData.getTopic().getName(), event.valueData.value);
+                            }
+                        });
+        return () -> {
+            inst.removeListener(listenerHandle);
+            subscriber.close();
+        };
+    }
+
+    /**
      * Writes a double to a key. Package-private on purpose: this is the sole write path for this
      * client, and it is reachable only from {@link NtWriteGuard}, which enforces the safety
      * whitelist before ever calling this. Nothing outside this package should be able to write to

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FRC AI Copilot</title>
+    <script>
+      // Applies the saved theme before first paint. Doing this in React instead would render one
+      // frame in the wrong theme on every load. Key matches THEME_STORAGE_KEY in useTheme.ts.
+      (function () {
+        try {
+          if (localStorage.getItem("frc-dashboard-theme") === "dark") {
+            document.documentElement.dataset.theme = "dark";
+          }
+        } catch (e) {
+          /* storage unavailable — fall through to the light default */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

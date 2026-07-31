@@ -1,0 +1,109 @@
+// Dashboard — a local web UI over the copilot's live telemetry and analysis layer.
+//
+// The server is plain JDK `com.sun.net.httpserver` (no web framework dependency, works offline in
+// the pit). The UI is a Vite/React app built to static files; Node is a *build-time* tool only —
+// the shipped distribution is one JVM serving a folder of assets.
+apply plugin: 'application'
+
+dependencies {
+    implementation project(':core-ingest')
+    implementation project(':profile')
+    implementation project(':analysis')
+    implementation project(':live-nt')
+    implementation project(':modes')
+    implementation "edu.wpi.first.ntcore:ntcore-java:${wpilibVersion}"
+    implementation "edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}"
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'org.mercsmavs.frccopilot.dashboard.DashboardMain'
+}
+
+// --- WPILib desktop natives for ntcore (ntcorejni + wpinetjni + wpiutiljni) ---
+// Same pattern as :live-nt / :mcp-server — the dashboard opens its own NT4 client.
+configurations {
+    natives
+}
+
+dependencies {
+    natives "edu.wpi.first.ntcore:ntcore-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.wpinet:wpinet-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+}
+
+def nativesDir = layout.buildDirectory.dir('natives')
+
+def extractNatives = tasks.register('extractNatives', Copy) {
+    from { configurations.natives.collect { zipTree(it) } }
+    include '**/*.dylib'
+    eachFile { it.path = it.name } // flatten to one dir for java.library.path
+    includeEmptyDirs = false
+    into nativesDir
+}
+
+tasks.withType(Test).configureEach {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
+
+tasks.named('run') {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
+
+// --- Web UI build (Vite) ---
+// `npm ci` when the lockfile is newer than node_modules, then `vite build` into web/dist.
+// Declared with inputs/outputs so Gradle skips it when nothing changed.
+def webDir = file('web')
+def webDist = file('web/dist')
+
+def npmInstall = tasks.register('npmInstall', Exec) {
+    workingDir webDir
+    commandLine 'npm', 'install', '--no-audit', '--no-fund'
+    inputs.file(file('web/package.json'))
+    outputs.dir(file('web/node_modules'))
+    onlyIf { webDir.exists() }
+}
+
+def webBuild = tasks.register('webBuild', Exec) {
+    dependsOn npmInstall
+    workingDir webDir
+    commandLine 'npm', 'run', 'build'
+    inputs.dir(file('web/src'))
+    inputs.file(file('web/index.html'))
+    inputs.file(file('web/vite.config.ts'))
+    outputs.dir(webDist)
+    onlyIf { webDir.exists() }
+}
+
+// Bundle the built UI + natives into the installed distribution.
+distributions {
+    main {
+        contents {
+            from(nativesDir) { into 'natives' }
+            from(webDist) { into 'web' }
+        }
+    }
+}
+
+['installDist', 'distTar', 'distZip'].each { t ->
+    tasks.named(t) { dependsOn extractNatives, webBuild }
+}
+
+tasks.named('startScripts') {
+    dependsOn extractNatives
+    doLast {
+        // Inject the natives dir onto java.library.path where $APP_HOME expands (Gradle 8.x
+        // deliberately prevents shell expansion inside DEFAULT_JVM_OPTS).
+        unixScript.text = unixScript.text.replace(
+                'exec "$JAVACMD" "$@"',
+                'exec "$JAVACMD" "-Djava.library.path=$APP_HOME/natives" "-Dfrc.dashboard.web=$APP_HOME/web" "$@"')
+        windowsScript.text = windowsScript.text.replace(
+                '"%JAVA_EXE%" %DEFAULT_JVM_OPTS%',
+                '"%JAVA_EXE%" "-Djava.library.path=%APP_HOME%\\natives" "-Dfrc.dashboard.web=%APP_HOME%\\web" %DEFAULT_JVM_OPTS%')
+    }
+}
