@@ -33,7 +33,7 @@ two modes:
 | — · `modes` | ✅ built + tested | Mode A between-match orchestrator (flags + persists metrics to the trend store) |
 | — · `smallmodel` | ✅ built + tested | "Big-AI-trains-small-AI": tiny logistic model over hand-labeled log examples |
 | — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **21 tools**; `get_guide` discovery |
-| — · `dashboard` | 🚧 phase 1 | Local web UI (loopback, read-only) — live NT telemetry with the analysis primitives running continuously, so health verdicts are visible without asking an AI. See [dashboard/README.md](dashboard/README.md) |
+| — · `dashboard` | ✅ Phase 1 & 2 complete | Local web UI (loopback, read-only) — live NT telemetry, health tiles, Signals, Pit, Match, Paths, Trends, and Profile views. See [dashboard/README.md](dashboard/README.md) |
 | — · `vscode-extension` | ✅ compiles | VS Code extension that builds/registers the MCP server |
 
 ## Build
@@ -52,6 +52,9 @@ Try a module CLI:
 analysis/build/install/analysis/bin/analysis analyze <match.wpilog>
 ```
 
+## Roadmap & Next Steps
+For future AI sessions and developers looking to contribute, see [ROADMAP.md](ROADMAP.md) for planned horizons (Sim/Replay deepening, post-match log daemon, vision analytics primitives, and one-command team setup).
+
 ## Acknowledgments
 Built independently, but informed by prior art in the FRC ecosystem — WPILib, AdvantageKit
 (Team 6328), PathPlanner, maple-sim (IronMaple), wpilog-mcp (Team 2363), and ClaudeScope. Team
@@ -59,3 +62,4 @@ Built independently, but informed by prior art in the FRC ecosystem — WPILib, 
 
 ## License
 TBD (intended to be permissive / open-source). Not yet finalized.
+
