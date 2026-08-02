@@ -1,16 +1,13 @@
 package org.mercsmavs.frccopilot.dashboard;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import org.mercsmavs.frccopilot.ingest.store.TrendStore;
+import org.mercsmavs.frccopilot.profile.RobotProfile;
 
 /**
  * Entry point for the local dashboard.
- *
- * <pre>
- *   dashboard                          # connect to a roboRIO at 10.63.69.2
- *   dashboard --host localhost         # connect to a desktop simulation
- *   dashboard --sim                    # run a built-in fake robot, no hardware needed
- *   dashboard --port 5800 --team 6369  # pick the web port / derive the roboRIO address
- * </pre>
  */
 public final class DashboardMain {
 
@@ -25,6 +22,9 @@ public final class DashboardMain {
         int webPort = DEFAULT_WEB_PORT;
         int ntPort = DEFAULT_NT_PORT;
         boolean sim = false;
+        Path pathsDir = null;
+        String dbPath = null;
+        Path profilePath = null;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -33,6 +33,9 @@ public final class DashboardMain {
                 case "--port" -> webPort = Integer.parseInt(args[++i]);
                 case "--nt-port" -> ntPort = Integer.parseInt(args[++i]);
                 case "--sim" -> sim = true;
+                case "--paths" -> pathsDir = Path.of(args[++i]);
+                case "--db" -> dbPath = args[++i];
+                case "--profile" -> profilePath = Path.of(args[++i]);
                 case "--help", "-h" -> {
                     printUsage();
                     return;
@@ -59,8 +62,29 @@ public final class DashboardMain {
         TelemetryHub hub = new TelemetryHub(host, ntPort);
         hub.start();
 
+        TrendStore store = null;
+        if (dbPath != null) {
+            try {
+                store = new TrendStore(dbPath);
+                System.out.println("[dashboard] trend store active: " + dbPath);
+            } catch (Exception e) {
+                System.err.println("[dashboard] failed to open trend store: " + e.getMessage());
+            }
+        }
+
+        RobotProfile profile = null;
+        if (profilePath != null && Files.isRegularFile(profilePath)) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                profile = mapper.readValue(profilePath.toFile(), RobotProfile.class);
+                System.out.println("[dashboard] robot profile loaded: " + profilePath);
+            } catch (Exception e) {
+                System.err.println("[dashboard] failed to read profile: " + e.getMessage());
+            }
+        }
+
         Path webRoot = StaticFiles.resolveRoot();
-        DashboardServer server = new DashboardServer(hub, webPort, webRoot);
+        DashboardServer server = new DashboardServer(hub, webPort, webRoot, pathsDir, store, profile);
         server.start();
 
         System.out.println("[dashboard] http://localhost:" + server.port());
@@ -70,9 +94,13 @@ public final class DashboardMain {
         }
 
         SimRobot toClose = simRobot;
+        TrendStore storeToClose = store;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             server.close();
             hub.close();
+            if (storeToClose != null) {
+                try { storeToClose.close(); } catch (Exception ignored) {}
+            }
             if (toClose != null) {
                 toClose.close();
             }
@@ -94,8 +122,12 @@ public final class DashboardMain {
                   --port <n>       web port (default: 5800)
                   --nt-port <n>    NetworkTables port (default: 5810)
                   --sim            run a built-in simulated robot instead of connecting to hardware
+                  --paths <dir>    directory containing PathPlanner .path files
+                  --db <path>      path to SQLite trend store database
+                  --profile <file> path to robot profile JSON file
                 """);
     }
 
     private DashboardMain() {}
 }
+

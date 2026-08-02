@@ -434,6 +434,146 @@ body {
   animation: fill-bar 600ms var(--ease) forwards;
 }
 
+/* ---- Phase 2 additions ---- */
+
+/* Responsive grid for StatCards — mirrors tile-grid breakpoints. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (min-width: 820px) {
+  .stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Search input used in FilterBar. */
+.search-input {
+  width: 100%;
+  max-width: 320px;
+  padding: 6px 10px 6px 30px;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  background: var(--theme-card);
+  color: var(--theme-text);
+  font-family: var(--mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color var(--dur) var(--ease);
+}
+.search-input::placeholder {
+  color: var(--theme-textFaint);
+}
+.search-input:focus {
+  border-color: var(--accent);
+}
+
+/* Tab bar for metric/section switching (Trends page). */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--theme-rail);
+  border: 1px solid var(--theme-border);
+  overflow-x: auto;
+}
+.tab-item {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--theme-textMuted);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.tab-item:hover {
+  background: var(--theme-hover);
+  color: var(--theme-text);
+}
+.tab-item[aria-selected="true"] {
+  background: var(--theme-card);
+  color: var(--theme-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+[data-theme="dark"] .tab-item[aria-selected="true"] {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Severity badge — inline pill. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Field canvas for path visualization. */
+.field-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16.54 / 8.21;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-card);
+  overflow: hidden;
+}
+
+/* Expandable row animation. */
+.expand-row {
+  overflow: hidden;
+  transition: max-height 200ms var(--ease), opacity 200ms var(--ease);
+}
+.expand-row[data-open="false"] {
+  max-height: 0;
+  opacity: 0;
+}
+.expand-row[data-open="true"] {
+  max-height: 240px;
+  opacity: 1;
+}
+
+/* DataTable header sort indicator. */
+.sort-indicator {
+  display: inline-block;
+  font-size: 8px;
+  margin-left: 4px;
+  color: var(--theme-textFaint);
+}
+
+/* Profile device pills. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--theme-blueBg);
+  color: var(--theme-blue);
+  border: 1px solid transparent;
+}
+
+/* Trend bar chart bars. */
+.trend-bar {
+  transition: opacity var(--dur) var(--ease);
+}
+.trend-bar:hover {
+  opacity: 0.8;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

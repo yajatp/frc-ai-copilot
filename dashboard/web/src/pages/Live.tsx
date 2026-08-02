@@ -1,4 +1,5 @@
 import HealthTile from "../components/HealthTile";
+import PageHeader from "../components/PageHeader";
 import SignalChart from "../components/SignalChart";
 import type { Point } from "../types";
 import type { Telemetry } from "../useTelemetry";
@@ -13,44 +14,43 @@ export default function Live({ tick, series }: Telemetry) {
   const health = tick?.health ?? [];
   const window = windowSeconds(series.battery_voltage ?? []);
 
+  const connectedBadge = tick?.connected ? (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        fontSize: "11px",
+        fontWeight: 500,
+        color: "var(--theme-green)",
+        background: "var(--theme-greenBg)",
+        padding: "2px 8px",
+        borderRadius: "10px",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: "5px",
+          height: "5px",
+          borderRadius: "50%",
+          background: "var(--theme-green)",
+        }}
+      />
+      Connected
+    </span>
+  ) : null;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "28px", padding: "24px" }}>
-      <header style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 600, letterSpacing: "-0.02em" }}>Live</h1>
-          {tick?.connected && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "5px",
-                fontSize: "11px",
-                fontWeight: 500,
-                color: "var(--theme-green)",
-                background: "var(--theme-greenBg)",
-                padding: "2px 8px",
-                borderRadius: "10px",
-              }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  width: "5px",
-                  height: "5px",
-                  borderRadius: "50%",
-                  background: "var(--theme-green)",
-                }}
-              />
-              Connected
-            </span>
-          )}
-        </div>
-        <p style={{ margin: 0, fontSize: "12.5px", color: "var(--theme-textMuted)", lineHeight: 1.5, maxWidth: "640px" }}>
-          Every verdict below is the same analysis Mode A runs after a match, applied continuously to
-          the rolling telemetry window
-          {window === null ? "" : ` — currently ${window} s`}.
-        </p>
-      </header>
+      <PageHeader
+        title="Live"
+        badge={connectedBadge}
+        subtitle={`Every verdict below is the same analysis Mode A runs after a match, applied continuously to the rolling telemetry window${
+          window === null ? "" : ` — currently ${window} s`
+        }.`}
+      />
+
 
       <section style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <h2 className="eyebrow" style={{ margin: 0 }}>

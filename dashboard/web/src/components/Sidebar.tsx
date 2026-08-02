@@ -13,23 +13,24 @@ const NAV: { section: string; items: NavEntry[] }[] = [
     section: "Robot",
     items: [
       { id: "live", label: "Live", ready: true },
-      { id: "pit", label: "Pit", ready: false },
-      { id: "match", label: "Match", ready: false },
+      { id: "pit", label: "Pit", ready: true },
+      { id: "match", label: "Match", ready: true },
     ],
   },
   {
     section: "Analysis",
     items: [
-      { id: "signals", label: "Signals", ready: false },
-      { id: "paths", label: "Paths", ready: false },
-      { id: "trends", label: "Trends", ready: false },
+      { id: "signals", label: "Signals", ready: true },
+      { id: "paths", label: "Paths", ready: true },
+      { id: "trends", label: "Trends", ready: true },
     ],
   },
   {
     section: "Setup",
-    items: [{ id: "robot", label: "Profile & coverage", ready: false }],
+    items: [{ id: "robot", label: "Profile & coverage", ready: true }],
   },
 ];
+
 
 interface SidebarProps {
   active: string;

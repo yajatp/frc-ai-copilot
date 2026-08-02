@@ -15,23 +15,22 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Files;
+import java.util.stream.Stream;
+import org.mercsmavs.frccopilot.ingest.store.TrendStore;
 import org.mercsmavs.frccopilot.modes.ModeA;
+import org.mercsmavs.frccopilot.profile.RobotProfile;
+import org.mercsmavs.frccopilot.write.PathFile;
 
 /**
  * The dashboard's local web server: a JSON/SSE API over {@link TelemetryHub} plus the static UI.
- *
- * <p>Bound to loopback only. Robot telemetry should not be reachable from the field network, and
- * keeping it off the wire also means no CORS surface — in development the Vite dev server proxies
- * to this port rather than calling it cross-origin.
- *
- * <p>Two cadences drive the browser. Raw values tick at 10 Hz so gauges feel live; health verdicts
- * recompute at 2 Hz, because re-running the analysis primitives over the full rolling window ten
- * times a second would be pointless garbage for a number that changes on the scale of seconds.
  */
 final class DashboardServer implements AutoCloseable {
 
     private static final int TICK_HZ = 10;
     private static final int HEALTH_HZ = 2;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** Points of history sent in the initial frame, per signal. */
     private static final int HISTORY_POINTS = 300;
@@ -50,15 +49,25 @@ final class DashboardServer implements AutoCloseable {
     private final ScheduledExecutorService ticker;
     private final int port;
 
+    private final Path pathsDir;
+    private final TrendStore store;
+    private final RobotProfile profile;
+
     /** Latest health verdicts, recomputed on the slow cadence and reused by the fast one. */
     private volatile List<LiveHealth.Verdict> health = List.of();
 
     DashboardServer(TelemetryHub hub, int port, Path webRoot) throws IOException {
+        this(hub, port, webRoot, null, null, null);
+    }
+
+    DashboardServer(TelemetryHub hub, int port, Path webRoot, Path pathsDir, TrendStore store, RobotProfile profile) throws IOException {
         this.hub = hub;
         this.port = port;
+        this.pathsDir = pathsDir;
+        this.store = store;
+        this.profile = profile;
+
         this.http = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
-        // SSE subscribers each hold a thread for the life of the tab, so the default
-        // single-threaded executor would deadlock after the first browser connects.
         this.httpPool = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "dashboard-http");
             t.setDaemon(true);
@@ -75,6 +84,11 @@ final class DashboardServer implements AutoCloseable {
         http.createContext("/api/topics", this::handleTopics);
         http.createContext("/api/health", this::handleHealth);
         http.createContext("/api/stream", this::handleStream);
+        http.createContext("/api/paths", this::handlePaths);
+        http.createContext("/api/trends", this::handleTrends);
+        http.createContext("/api/logs", this::handleLogs);
+        http.createContext("/api/events", this::handleEvents);
+        http.createContext("/api/profile", this::handleProfile);
         http.createContext("/", new StaticFiles(webRoot));
     }
 
@@ -245,6 +259,119 @@ final class DashboardServer implements AutoCloseable {
         // Deliberately not closed: the exchange now belongs to SseHub for the life of the tab.
     }
 
+    private void handlePaths(HttpExchange exchange) throws IOException {
+        ArrayNode arr = Json.arr();
+        if (pathsDir != null && Files.isDirectory(pathsDir)) {
+            try (Stream<Path> stream = Files.list(pathsDir)) {
+                stream.filter(p -> p.toString().endsWith(".path")).forEach(p -> {
+                    try {
+                        PathFile pf = PathFile.load(p);
+                        ObjectNode node = (ObjectNode) pf.root().deepCopy();
+                        String name = p.getFileName().toString().replace(".path", "");
+                        node.put("name", name);
+                        arr.add(node);
+                    } catch (Exception ignored) {
+                    }
+                });
+            }
+        }
+        rawJson(exchange, MAPPER.writeValueAsString(arr));
+    }
+
+    private void handleTrends(HttpExchange exchange) throws IOException {
+        String metric = queryParam(exchange, "metric");
+        ArrayNode arr = Json.arr();
+        if (store != null && metric != null) {
+            try {
+                for (TrendStore.MetricPoint pt : store.trend(metric)) {
+                    ObjectNode n = arr.addObject();
+                    n.put("logId", pt.logId());
+                    n.put("matchKey", pt.matchKey());
+                    n.put("phase", pt.phase());
+                    n.put("value", pt.value());
+                    n.put("unit", pt.unit());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        rawJson(exchange, MAPPER.writeValueAsString(arr));
+    }
+
+    private void handleLogs(HttpExchange exchange) throws IOException {
+        ArrayNode arr = Json.arr();
+        if (store != null) {
+            try {
+                for (TrendStore.LogRow row : store.listLogs()) {
+                    ObjectNode n = arr.addObject();
+                    n.put("id", row.id());
+                    n.put("path", row.path());
+                    n.put("matchKey", row.matchKey());
+                    n.put("durationS", row.durationSeconds());
+                    n.put("gitSha", row.gitSha());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        rawJson(exchange, MAPPER.writeValueAsString(arr));
+    }
+
+    private void handleEvents(HttpExchange exchange) throws IOException {
+        ArrayNode arr = Json.arr();
+        rawJson(exchange, MAPPER.writeValueAsString(arr));
+    }
+
+    private void handleProfile(HttpExchange exchange) throws IOException {
+        ObjectNode node = Json.obj();
+        if (profile != null) {
+            node.put("loaded", true);
+            node.put("team", profile.team());
+            node.put("robot", profile.robot());
+            node.put("season", profile.season());
+            node.put("game", profile.game());
+            if (profile.vendors() != null) {
+                ArrayNode vArr = node.putArray("vendors");
+                profile.vendors().forEach(vArr::add);
+            }
+            if (profile.drivetrain() != null) {
+                ObjectNode dt = node.putObject("drivetrain");
+                if (profile.drivetrain().massKg() != null) dt.put("massKg", profile.drivetrain().massKg());
+                if (profile.drivetrain().trackwidthM() != null) dt.put("trackwidthM", profile.drivetrain().trackwidthM());
+                if (profile.drivetrain().maxSpeedMps() != null) dt.put("maxSpeedMps", profile.drivetrain().maxSpeedMps());
+                if (profile.drivetrain().driveMotor() != null) dt.put("driveMotor", profile.drivetrain().driveMotor());
+                if (profile.drivetrain().driveCurrentLimitA() != null) dt.put("driveCurrentLimitA", profile.drivetrain().driveCurrentLimitA());
+            }
+            if (profile.devices() != null) {
+                ArrayNode devArr = node.putArray("devices");
+                for (RobotProfile.Device dev : profile.devices()) {
+                    ObjectNode dNode = devArr.addObject();
+                    if (dev.canId() != null) dNode.put("canId", dev.canId());
+                    dNode.put("label", dev.label());
+                    dNode.put("subsystem", dev.subsystem());
+                    dNode.put("vendor", dev.vendor());
+                    dNode.put("accurate", dev.accurate());
+                }
+            }
+            if (profile.mechanisms() != null) {
+                ArrayNode mechArr = node.putArray("mechanisms");
+                for (RobotProfile.Mechanism mech : profile.mechanisms()) {
+                    ObjectNode mNode = mechArr.addObject();
+                    mNode.put("name", mech.name());
+                    mNode.put("type", mech.type());
+                    if (mech.degreesOfFreedom() != null) mNode.put("degreesOfFreedom", mech.degreesOfFreedom());
+                    if (mech.maxHeightMeters() != null) mNode.put("maxHeightMeters", mech.maxHeightMeters());
+                }
+            }
+        } else {
+            node.put("loaded", false);
+        }
+        json(exchange, node);
+    }
+
+    private static void rawJson(HttpExchange exchange, String jsonString) throws IOException {
+        StaticFiles.respond(exchange, 200, "application/json; charset=utf-8",
+                jsonString.getBytes(StandardCharsets.UTF_8));
+    }
+
     private static void json(HttpExchange exchange, ObjectNode node) throws IOException {
         StaticFiles.respond(exchange, 200, "application/json; charset=utf-8",
                 Json.write(node).getBytes(StandardCharsets.UTF_8));
@@ -277,3 +404,4 @@ final class DashboardServer implements AutoCloseable {
         httpPool.shutdownNow();
     }
 }
+
