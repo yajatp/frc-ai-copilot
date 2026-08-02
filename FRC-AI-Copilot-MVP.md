@@ -170,10 +170,14 @@ Claude Code should treat this as the starting bibliography, but is explicitly in
 - FRC Team 360's actual CLAUDE.md for their 2026 robot codebase ("RainMaker26") — https://github.com/FRCTeam360/RainMaker26/blob/main/CLAUDE.md — documents real conventions: IO-layer-per-hardware-implementation pattern (following Team 6328/AdvantageKit's architecture), Noop IO implementations for absent hardware, PR-review scoping rules (only review diff lines, don't nitpick style, focus on runtime-breaking changes).
 - rylero's DeepstreamYOLO CLAUDE.md — https://github.com/rylero/DeepstreamYOLO/blob/main/CLAUDE.md — documents a Jetson Orin Nano + DeepStream + YOLO + NetworkTables vision pipeline, useful reference for how a non-roboRIO coprocessor project structures its own agent-facing docs.
 
-### Source 12 — Chief Delphi general community-sentiment thread on AI use in FRC (broader context, not case-specific)
-- "Lowering the Barrier to Code: AI's Role in FRC Robotics" — https://www.chiefdelphi.com/t/lowering-the-barrier-to-code-ais-role-in-frc-robotics/503634
+### Source 13 — Additional Ecosystem Competitors Flagged for Deep-Dive Research (Prior Art)
+- **Curatorfrc (`Curator FRC`)**: Curation, search, and knowledge management tool for FRC documentation and team assets.
+- **Arcinator FRC (`Arcinator` by FRC Team 6014 ARC)**: OpenAI/RAG-powered FRC chatbot assistant trained on 2014–2026 game manuals, WPILib docs, and TBA data with 150+ language translation and "Turbo" engine.
+- **Frctools (`FRC Tools`)**: FRC software utility and telemetry/code analysis tools.
+- **Instruction**: Prior to further implementation, AI agents should deep dive into these 3 tools, analyze their features and prompt/RAG patterns, and incorporate their strongest elements into this team's internal copilot.
 
 ---
+
 
 ## PART 3 — THE ACTUAL PRODUCT SPEC
 

@@ -4,6 +4,20 @@ This document outlines the planned future expansion horizons for the **FRC AI Co
 
 ---
 
+## 🚩 HIGH PRIORITY: Ecosystem Competitor & Tool Research Flags
+*Before proceeding with further major feature implementation, perform a deep-dive research pass into these 3 FRC AI tools/projects to incorporate their strongest capabilities into this internal team copilot:*
+
+1. **Curatorfrc (`Curator FRC`)**:
+   - Curation, search, and knowledge management tool for FRC documentation, technical resources, and team repositories.
+2. **Arcinator FRC (`Arcinator` by FRC Team 6014 ARC)**:
+   - OpenAI/RAG-powered FRC AI assistant trained on game manuals (2014–2026), WPILib docs, TBA match data, and multi-language translation (150+ languages). Features the upgraded "Turbo" model engine.
+3. **Frctools (`FRC Tools`)**:
+   - FRC utility suite and code/telemetry analysis tooling for robotics teams.
+
+> **Directive for Future AI Agents**: Prior to starting new feature work, investigate the feature sets, APIs, prompt strategies, and user workflows of `Curatorfrc`, `Arcinator FRC`, and `Frctools`. Incorporate their best elements into this codebase so Team 6369 has the most comprehensive, unified internal FRC copilot possible.
+
+---
+
 ## 🧭 Horizon 1 — Deepening Agentic Sim/Replay (Module 6)
 *Target: 254-style closed-loop robot code iteration in headless simulation.*
 
