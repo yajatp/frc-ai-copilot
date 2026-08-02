@@ -12,7 +12,7 @@ export default function App() {
   const [page, setPage] = useState("live");
 
   return (
-    <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
+    <div className="shell">
       <Sidebar
         active={page}
         onSelect={setPage}
@@ -20,7 +20,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
-      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "var(--theme-bg)" }}>
+      <main className="shell-main">
         <Live {...telemetry} />
       </main>
       <StatusRail tick={telemetry.tick} streamOpen={telemetry.streamOpen} />

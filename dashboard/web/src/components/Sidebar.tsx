@@ -41,23 +41,15 @@ interface SidebarProps {
 
 export default function Sidebar({ active, onSelect, connected, theme, onToggleTheme }: SidebarProps) {
   return (
-    <nav
-      style={{
-        flexShrink: 0,
-        width: "212px",
-        borderRight: "1px solid var(--theme-border)",
-        background: "var(--theme-rail)",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <nav className="shell-sidebar" aria-label="Sections">
       <div
+        className="sidebar-head"
         style={{
           padding: "16px 16px 14px",
-          borderBottom: "1px solid var(--theme-border)",
           display: "flex",
           alignItems: "center",
           gap: "9px",
+          flexShrink: 0,
         }}
       >
         <div
@@ -75,10 +67,10 @@ export default function Sidebar({ active, onSelect, connected, theme, onToggleTh
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 8px" }}>
+      <div className="sidebar-nav">
         {NAV.map((group) => (
-          <div key={group.section} style={{ marginBottom: "16px" }}>
-            <div className="eyebrow" style={{ padding: "0 8px 6px" }}>
+          <div key={group.section} className="sidebar-group" style={{ marginBottom: "16px" }}>
+            <div className="eyebrow sidebar-group-label" style={{ padding: "0 8px 6px" }}>
               {group.section}
             </div>
             {group.items.map((item) => {
@@ -124,16 +116,7 @@ export default function Sidebar({ active, onSelect, connected, theme, onToggleTh
         ))}
       </div>
 
-      <div
-        style={{
-          padding: "10px 12px 10px 16px",
-          borderTop: "1px solid var(--theme-border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "8px",
-        }}
-      >
+      <div className="sidebar-foot">
         <div style={{ display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
           <span
             aria-hidden
@@ -145,7 +128,7 @@ export default function Sidebar({ active, onSelect, connected, theme, onToggleTh
               flexShrink: 0,
             }}
           />
-          <span style={{ fontSize: "12px", color: "var(--theme-textMuted)" }}>
+          <span className="sidebar-foot-label" style={{ fontSize: "12px", color: "var(--theme-textMuted)" }}>
             {connected ? "Robot connected" : "No robot"}
           </span>
         </div>

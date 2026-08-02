@@ -38,10 +38,8 @@ export default function SignalChart({ title, unit, points, color, threshold, dom
 
   return (
     <section
+      className="card"
       style={{
-        border: "1px solid var(--theme-border)",
-        background: "var(--theme-card)",
-        borderRadius: "8px",
         padding: "14px 15px 8px",
         display: "flex",
         flexDirection: "column",
@@ -53,7 +51,7 @@ export default function SignalChart({ title, unit, points, color, threshold, dom
         <h3 className="eyebrow" style={{ margin: 0 }}>
           {title}
         </h3>
-        <span className="numeric" style={{ fontSize: "13px", color: "var(--theme-text)" }}>
+        <span className="numeric" style={{ fontSize: "13px", color: "var(--theme-text)", fontWeight: 500 }}>
           {hasData ? `${points[points.length - 1].v.toFixed(2)} ${unit}` : "—"}
         </span>
       </header>

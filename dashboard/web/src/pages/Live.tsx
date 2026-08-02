@@ -14,10 +14,38 @@ export default function Live({ tick, series }: Telemetry) {
   const window = windowSeconds(series.battery_voltage ?? []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "22px", padding: "22px 24px" }}>
-      <header style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-        <h1 style={{ margin: 0, fontSize: "17px", fontWeight: 600, letterSpacing: "-0.02em" }}>Live</h1>
-        <p style={{ margin: 0, fontSize: "12.5px", color: "var(--theme-textMuted)", lineHeight: 1.5 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "28px", padding: "24px" }}>
+      <header style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 600, letterSpacing: "-0.02em" }}>Live</h1>
+          {tick?.connected && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "11px",
+                fontWeight: 500,
+                color: "var(--theme-green)",
+                background: "var(--theme-greenBg)",
+                padding: "2px 8px",
+                borderRadius: "10px",
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: "5px",
+                  height: "5px",
+                  borderRadius: "50%",
+                  background: "var(--theme-green)",
+                }}
+              />
+              Connected
+            </span>
+          )}
+        </div>
+        <p style={{ margin: 0, fontSize: "12.5px", color: "var(--theme-textMuted)", lineHeight: 1.5, maxWidth: "640px" }}>
           Every verdict below is the same analysis Mode A runs after a match, applied continuously to
           the rolling telemetry window
           {window === null ? "" : ` — currently ${window} s`}.
@@ -101,10 +129,10 @@ function windowSeconds(points: Point[]): number | null {
 function EmptyState() {
   return (
     <div
+      className="card"
       style={{
-        border: "1px dashed var(--theme-border2)",
-        borderRadius: "8px",
-        padding: "28px 20px",
+        borderStyle: "dashed",
+        padding: "32px 20px",
         textAlign: "center",
         color: "var(--theme-textMuted)",
         fontSize: "12.5px",

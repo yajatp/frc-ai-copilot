@@ -62,6 +62,10 @@
   --accent: #5e6ad2;
 
   --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Transition tokens — everything uses one cadence so the UI moves as a unit. */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur: 160ms;
 }
 
 [data-theme="dark"] {
@@ -110,6 +114,16 @@ body,
   height: 100%;
 }
 
+/*
+ * Keyboard focus. The panes have no other affordance for where you are, so this is the only
+ * thing standing between a keyboard user and a blind tab through the whole nav.
+ */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+
 body {
   margin: 0;
   background: var(--theme-bg);
@@ -148,13 +162,276 @@ body {
   letter-spacing: -0.03em;
 }
 
+.nav-item {
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
 .nav-item:hover {
   background: var(--theme-hover);
   color: var(--theme-text);
 }
 
+/*
+ * ---- Shell layout ----
+ *
+ * Wide (≥ 900px): three fixed panes, each scrolling independently, so the nav and status stay put
+ * while telemetry scrolls. Narrow: the panes stack and the page scrolls as one — a pit laptop is
+ * the primary scene, but a phone on the cart is a real one, and three fixed columns crush the
+ * content to a single word per line well before that.
+ */
+.shell {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shell-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--theme-bg);
+}
+
+.shell-sidebar {
+  flex-shrink: 0;
+  width: 212px;
+  border-right: 1px solid var(--theme-border);
+  background: var(--theme-rail);
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-rail {
+  flex-shrink: 0;
+  width: 250px;
+  border-left: 1px solid var(--theme-border);
+  background: var(--theme-rail);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-head {
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 8px;
+}
+
+.sidebar-foot {
+  padding: 10px 12px 10px 16px;
+  border-top: 1px solid var(--theme-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/*
+ * Four health checks: 2x2 or 4x1, never 3+1. `auto-fit` orphans the fourth tile onto its own row
+ * at common widths, which reads as an unfinished layout rather than a deliberate one.
+ */
+.tile-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 560px) {
+  .tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 820px) {
+  .chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1500px) {
+  .tile-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/*
+ * ---- Responsive collapse ----
+ *
+ * Below 900px the three-column layout is unreadable. The sidebar becomes a horizontal top bar with
+ * scrollable nav, the status rail drops below the main content, and the whole page scrolls as one.
+ */
+@media (max-width: 899px) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
+  .shell-main {
+    overflow-y: visible;
+    order: 1;
+  }
+
+  .shell-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--theme-border);
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding-right: 8px;
+    order: 0;
+  }
+
+  .sidebar-head {
+    border-bottom: none;
+    padding: 12px 4px 12px 16px;
+    flex-shrink: 0;
+  }
+
+  /* Nav becomes one horizontally scrollable row; group labels are dropped for space. */
+  .sidebar-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sidebar-group {
+    display: contents;
+  }
+
+  .sidebar-group-label {
+    display: none;
+  }
+
+  .sidebar-nav button {
+    width: auto !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .sidebar-foot {
+    border-top: none;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .sidebar-foot-label {
+    display: none;
+  }
+
+  /* Rail drops below the main content area. */
+  .shell-rail {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--theme-border);
+    overflow: visible;
+    order: 2;
+  }
+}
+
+/* At small widths the rail sections should reflow into a grid rather than stacking narrow. */
+@media (min-width: 500px) and (max-width: 899px) {
+  .shell-rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+.row-hover {
+  transition: background var(--dur) var(--ease);
+}
 .row-hover:hover {
   background: var(--theme-hover);
+}
+
+/*
+ * ---- Card polish ----
+ *
+ * Subtle shadow and hover lift on cards. The pit dashboard is a tool, so the effects are kept
+ * restrained — just enough depth to separate cards from the background without being distracting.
+ */
+.card {
+  border: 1px solid var(--theme-border);
+  background: var(--theme-card);
+  border-radius: 8px;
+  transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-color: var(--theme-border2);
+}
+[data-theme="dark"] .card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Severity-tinted cards override the base card styles but keep the hover. */
+.card--watch {
+  border-color: var(--theme-amberBorder);
+  background: var(--theme-amberBg);
+}
+.card--watch:hover {
+  border-color: var(--theme-amberDot);
+}
+.card--critical {
+  border-color: var(--theme-red);
+  background: var(--theme-redBg);
+}
+.card--critical:hover {
+  border-color: var(--theme-red);
+}
+
+/* Pulse animation for critical severity dots. */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.dot-pulse {
+  animation: pulse-dot 2s var(--ease) infinite;
+}
+
+/* Smooth fade for chart tooltips. */
+.recharts-tooltip-wrapper {
+  transition: none !important;
+}
+
+/* Status rail section dividers — even spacing. */
+.rail-section {
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid var(--theme-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Coverage progress bar animated fill. */
+@keyframes fill-bar {
+  from { width: 0; }
+}
+.coverage-bar {
+  animation: fill-bar 600ms var(--ease) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

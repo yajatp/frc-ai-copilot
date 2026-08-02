@@ -18,20 +18,10 @@ export default function StatusRail({ tick, streamOpen }: StatusRailProps) {
   const pct = total === 0 ? 0 : Math.round((covered.length / total) * 100);
 
   return (
-    <aside
-      style={{
-        flexShrink: 0,
-        width: "250px",
-        borderLeft: "1px solid var(--theme-border)",
-        background: "var(--theme-rail)",
-        display: "flex",
-        flexDirection: "column",
-        overflowY: "auto",
-      }}
-    >
+    <aside className="shell-rail" aria-label="Status">
       <Section title="Connection">
-        <Row label="Stream" value={streamOpen ? "Open" : "Reconnecting…"} />
-        <Row label="Robot" value={tick?.connected ? "Connected" : "Not connected"} />
+        <Row label="Stream" value={streamOpen ? "Open" : "Reconnecting…"} ok={streamOpen} />
+        <Row label="Robot" value={tick?.connected ? "Connected" : "Not connected"} ok={tick?.connected} />
         <Row label="Topics" value={tick ? String(tick.topics) : "—"} />
       </Section>
 
@@ -67,10 +57,14 @@ export default function StatusRail({ tick, streamOpen }: StatusRailProps) {
           </span>
         </div>
         <div
-          role="presentation"
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Signal coverage: ${pct}%`}
           style={{ display: "flex", height: "6px", borderRadius: "3px", background: "var(--theme-track)", overflow: "hidden" }}
         >
-          <div style={{ height: "100%", background: "var(--theme-trackFill)", width: `${pct}%` }} />
+          <div className="coverage-bar" style={{ height: "100%", background: "var(--theme-trackFill)", width: `${pct}%` }} />
         </div>
         {missing.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginTop: "2px" }}>
@@ -91,15 +85,7 @@ export default function StatusRail({ tick, streamOpen }: StatusRailProps) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "10px",
-        padding: "18px 18px 16px",
-        borderBottom: "1px solid var(--theme-border)",
-      }}
-    >
+    <div className="rail-section">
       <h2 className="eyebrow" style={{ margin: 0 }}>
         {title}
       </h2>
@@ -108,18 +94,26 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "10px" }}>
+    <div className="row-hover" style={{
+      display: "flex",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+      gap: "10px",
+      padding: "2px 0",
+      borderRadius: "4px",
+    }}>
       <span style={{ fontSize: "12.5px", color: "var(--theme-textMuted)", flexShrink: 0 }}>{label}</span>
       <span
         style={{
           fontSize: "12.5px",
-          color: "var(--theme-text2)",
+          color: ok === true ? "var(--theme-green)" : ok === false ? "var(--theme-red)" : "var(--theme-text2)",
           textAlign: "right",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
+          fontWeight: ok !== undefined ? 500 : 400,
         }}
         title={value}
       >

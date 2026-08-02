@@ -13,12 +13,17 @@ export default function HealthTile({ verdict }: { verdict: Verdict }) {
   const style = severityStyle(verdict.severity);
   const missing = verdict.signal === null;
 
+  const cardClass =
+    verdict.severity === "CRITICAL"
+      ? "card card--critical"
+      : verdict.severity === "WATCH"
+        ? "card card--watch"
+        : "card";
+
   return (
     <article
+      className={cardClass}
       style={{
-        border: `1px solid ${verdict.severity === "OK" ? "var(--theme-border)" : style.border}`,
-        background: verdict.severity === "OK" ? "var(--theme-card)" : style.bg,
-        borderRadius: "8px",
         padding: "14px 15px",
         display: "flex",
         flexDirection: "column",
@@ -30,6 +35,7 @@ export default function HealthTile({ verdict }: { verdict: Verdict }) {
         <div style={{ display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
           <span
             aria-hidden
+            className={verdict.severity === "CRITICAL" ? "dot-pulse" : undefined}
             style={{
               width: "6px",
               height: "6px",
