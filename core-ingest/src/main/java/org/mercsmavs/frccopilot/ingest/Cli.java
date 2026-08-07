@@ -1,6 +1,5 @@
 package org.mercsmavs.frccopilot.ingest;
 
-import edu.wpi.first.util.datalog.DataLogWriter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -182,30 +181,11 @@ public final class Cli {
     }
 
     /**
-     * Write a short, realistic synthetic match log (voltage sag under load, rising CAN errors,
-     * enable/state timeline). Useful for dev/demo and as a seed for regression scenarios.
+     * Write a full-match synthetic log with findable faults. See {@link SampleLogGenerator} — the
+     * generator lives there so tests and the demo path share exactly one fixture definition.
      */
     private static void generateSample(String file) throws Exception {
-        try (DataLogWriter log = new DataLogWriter(file)) {
-            int voltage = log.start("/PowerDistribution/Voltage", "double", "Battery voltage (V)");
-            int current = log.start("/PowerDistribution/TotalCurrent", "double", "Total current (A)");
-            int canErrors = log.start("/CAN/ReceiveErrorCount", "int64");
-            int enabled = log.start("/DS/Enabled", "boolean");
-            int state = log.start("/Robot/State", "string");
-
-            // 150 samples at 20 ms = 3 s: 1.5 s auto, then teleop; voltage dips during a heavy pull.
-            for (int i = 0; i < 150; i++) {
-                long ts = 1_000_000L + i * 20_000L;
-                double load = Math.max(0, Math.sin(i / 12.0)) * 90.0; // amps
-                double sag = 12.7 - load * 0.012 - (i > 90 ? 0.6 : 0.0); // brownout-ish late dip
-                log.appendDouble(voltage, Math.round(sag * 100) / 100.0, ts);
-                log.appendDouble(current, Math.round(load * 10) / 10.0, ts);
-                log.appendInteger(canErrors, i < 100 ? 0 : (i - 100) / 10, ts);
-                log.appendBoolean(enabled, i > 2, ts);
-                log.appendString(state, i < 75 ? "AUTO" : "TELEOP", ts);
-            }
-            log.flush();
-        }
+        SampleLogGenerator.write(file);
     }
 
     private static void usage() {
@@ -215,7 +195,7 @@ public final class Cli {
                   info    <file.wpilog>
                   entries <file.wpilog> [name-substring]
                   dump    <file.wpilog> <entry-name>
-                  gen     <file.wpilog>                 write a synthetic sample log
+                  gen     <file.wpilog>                 write a synthetic 150 s match log
                   ingest  <db.sqlite> <file.wpilog>     parse + persist a log summary
                   logs    <db.sqlite>                   list ingested logs
                   trend   <db.sqlite> <metric>          one metric across all logs

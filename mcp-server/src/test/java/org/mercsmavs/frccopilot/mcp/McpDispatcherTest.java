@@ -52,6 +52,17 @@ class McpDispatcherTest {
     }
 
     @Test
+    void toolsListExposesEveryAnalysisPrimitive() throws Exception {
+        JsonNode r = handle("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/list\"}");
+        Set<String> names = new HashSet<>();
+        r.at("/result/tools").forEach(t -> names.add(t.get("name").asText()));
+        // Every primitive in :analysis must be reachable by an agent, not just from Java.
+        assertTrue(names.containsAll(Set.of(
+                "analyze_cycles", "signal_stats", "compare_signals", "correlate",
+                "find_peaks", "rate_of_change", "data_quality")), () -> "tools were: " + names);
+    }
+
+    @Test
     void callsGetGuide() throws Exception {
         JsonNode r = handle(
                 "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\","

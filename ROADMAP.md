@@ -4,19 +4,31 @@ This document outlines the planned future expansion horizons for the **FRC AI Co
 
 ---
 
-## 🚩 HIGH PRIORITY: Ecosystem Competitor & Tool Research Flags
-*Before proceeding with further major feature implementation, perform a deep-dive research pass into these 3 FRC AI tools/projects to incorporate their strongest capabilities into this internal team copilot:*
+## ✅ COMPLETED: Ecosystem Competitor & Tool Research (2026-08-02)
+*Deep-dive research completed across 8 FRC AI tools. Full report: [docs/competitive-intelligence.md](docs/competitive-intelligence.md)*
 
-1. **Curatorfrc (`Curator FRC`)**:
-   - Curation, search, and knowledge management tool for FRC documentation, technical resources, and team repositories.
-2. **Arcinator FRC (`Arcinator` by FRC Team 6014 ARC)**:
-   - OpenAI/RAG-powered FRC AI assistant trained on game manuals (2014–2026), WPILib docs, TBA match data, and multi-language translation (150+ languages). Features the upgraded "Turbo" model engine.
-3. **Frctools (`FRC Tools`)**:
-   - FRC utility suite and code/telemetry analysis tooling for robotics teams.
+**Tools surveyed**: Arcinator (Team 6014), wpilog-mcp (Team 2363), Agentic-CSA, ChatFRC (Team 971), FRC-RAG-MCP, FTC-Claude (NCSSM), DragonScout (Team 6014), FRCTools.
 
-> **Directive for Future AI Agents**: Prior to starting new feature work, investigate the feature sets, APIs, prompt strategies, and user workflows of `Curatorfrc`, `Arcinator FRC`, and `Frctools`. Incorporate their best elements into this codebase so Team 6369 has the most comprehensive, unified internal FRC copilot possible.
+**Key finding**: Our copilot is the most comprehensive tool in the ecosystem (no competitor combines live telemetry + 15 analysis primitives + PathPlanner editing + sim/replay + Mode A + dashboard + 21 MCP tools). The main gap is **documentation/knowledge access** — every competitor offers doc search and we have none.
 
 ---
+
+## 🎯 Horizon 0 — Close Competitive Gaps (Highest Priority)
+*Target: Cover the capabilities every competitor has that we're missing.*
+
+- **Documentation RAG Search (`search_docs` MCP tool)**:
+  - Index WPILib, CTRE Phoenix 6, REV, and PhotonVision docs for semantic search
+  - This is the #1 AI use case for FRC teams and the #1 gap in our tool
+- **Game Manual Rule Lookup (`search_manual` MCP tool)**:
+  - Index the current season's game manual PDF for quick rule references during coding
+- **Cycle Time / Scoring Efficiency Analysis (`analyze_cycles` primitive)**:
+  - Measure intake→score cycle duration from .wpilog data (only wpilog-mcp has this)
+- **Modular Skill Packs (`.agents/skills/`)**:
+  - Create per-vendor skill files (CTRE, REV, PathPlanner, PhotonVision) with API patterns, pitfalls, and code templates
+  - Inspired by FTC-Claude's marketplace model
+
+---
+
 
 ## 🧭 Horizon 1 — Deepening Agentic Sim/Replay (Module 6)
 *Target: 254-style closed-loop robot code iteration in headless simulation.*

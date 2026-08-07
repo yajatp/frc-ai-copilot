@@ -39,6 +39,27 @@ class AnalysisDepthTest {
     }
 
     @Test
+    void compareReportsMeanAndMaxDeltas() {
+        Series before = series(20, 1, 2, 3, 4);
+        Series after = series(20, 3, 4, 5, 6);
+        Compare.Result r = Compare.of(before, after);
+        assertEquals(2.0, r.meanDelta(), 1e-9);
+        assertEquals(2.0, r.maxDelta(), 1e-9);
+
+        // Identical series must not be described as a real change.
+        assertTrue(Compare.of(before, series(20, 1, 2, 3, 4)).assessment().contains("No meaningful difference"));
+    }
+
+    @Test
+    void rateOfChangeMeasuresSlopePerSecond() {
+        // +1 unit every 100 ms == +10 units/s, with one flat step in the middle.
+        RateOfChange.Result r = RateOfChange.of(series(100, 0, 1, 2, 2, 3));
+        assertEquals(10.0, r.maxSlope(), 1e-9);
+        assertEquals(0.0, r.minSlope(), 1e-9);
+        assertEquals(0.1, r.maxSlopeTimeSeconds(), 1e-9, "ties report the first time the max slope occurred");
+    }
+
+    @Test
     void correlationSignsAreCorrect() {
         Series a = series(20, 1, 2, 3, 4, 5, 6);
         Series same = series(20, 1, 2, 3, 4, 5, 6);

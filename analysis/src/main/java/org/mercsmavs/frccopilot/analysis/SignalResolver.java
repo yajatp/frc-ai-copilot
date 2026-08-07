@@ -19,6 +19,14 @@ public final class SignalResolver {
             List.of("ReceiveErrorCount", "CANReceiveError", "BusOffCount", "CAN/Error", "CanBus", "Can");
     public static final List<String> TOTAL_CURRENT =
             List.of("PowerDistribution/TotalCurrent", "TotalCurrent", "Current");
+    public static final List<String> SWERVE =
+            List.of("DriveVelocity", "SwerveStates", "DriveAppliedVolts", "ModuleVelocity", "Velocity");
+    public static final List<String> VISION =
+            List.of("hasTarget", "HasTarget", "NumTags", "TagCount", "TargetsSeen");
+    public static final List<String> LOOP_PERIOD =
+            List.of("loopTimeMs", "LoopTime", "codeRuntime", "PeriodicMs", "loopPeriod");
+    public static final List<String> CYCLE_COUNTER =
+            List.of("CycleCount", "ScoreCount", "PiecesScored", "GamePiecesScored", "ShotCount", "Scored");
 
     /**
      * Return the name of the entry that best matches the candidate list — the highest-priority

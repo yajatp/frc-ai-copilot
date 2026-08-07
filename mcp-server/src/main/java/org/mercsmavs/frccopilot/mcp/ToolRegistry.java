@@ -10,10 +10,17 @@ import java.util.Optional;
 import org.mercsmavs.frccopilot.analysis.AnomalyDetection;
 import org.mercsmavs.frccopilot.analysis.BatteryHealth;
 import org.mercsmavs.frccopilot.analysis.CanHealth;
+import org.mercsmavs.frccopilot.analysis.Compare;
+import org.mercsmavs.frccopilot.analysis.Correlation;
+import org.mercsmavs.frccopilot.analysis.CycleTime;
+import org.mercsmavs.frccopilot.analysis.DataQuality;
 import org.mercsmavs.frccopilot.analysis.LoopTiming;
+import org.mercsmavs.frccopilot.analysis.PeakFinder;
 import org.mercsmavs.frccopilot.analysis.PowerAnalysis;
+import org.mercsmavs.frccopilot.analysis.RateOfChange;
 import org.mercsmavs.frccopilot.analysis.Series;
 import org.mercsmavs.frccopilot.analysis.SignalResolver;
+import org.mercsmavs.frccopilot.analysis.Statistics;
 import org.mercsmavs.frccopilot.analysis.SwerveAnalysis;
 import org.mercsmavs.frccopilot.analysis.VisionAnalysis;
 import org.mercsmavs.frccopilot.ingest.LogEntry;
@@ -166,6 +173,60 @@ final class ToolRegistry {
                         new Schemas.Prop("entry", "string", "Signal name", true)),
                 ToolRegistry::anomaly));
 
+        add(tools, new SimpleTool("analyze_cycles", "Scoring cycle-time analysis from a monotonic"
+                + " cycle/score counter: how many cycles, and how fast (mean/median/fastest).",
+                Schemas.object(
+                        new Schemas.Prop("file", "string", "Path to a .wpilog", true),
+                        new Schemas.Prop("entry", "string", "Counter signal name (optional; auto-resolved if omitted)", false)),
+                ToolRegistry::analyzeCycles));
+
+        add(tools, new SimpleTool("signal_stats", "Summary statistics for one signal"
+                + " (min/max/mean/median/stdDev/p95) with a data-quality block.",
+                Schemas.object(
+                        new Schemas.Prop("file", "string", "Path to a .wpilog", true),
+                        new Schemas.Prop("entry", "string", "Signal name", true)),
+                ToolRegistry::signalStats));
+
+        add(tools, new SimpleTool("compare_signals", "Compare summary statistics of two signals —"
+                + " the same signal across two matches, or two symmetric mechanisms (left vs right).",
+                Schemas.object(
+                        new Schemas.Prop("file", "string", "Path to a .wpilog", true),
+                        new Schemas.Prop("entry", "string", "First signal name", true),
+                        new Schemas.Prop("entryB", "string", "Second signal name (defaults to 'entry')", false),
+                        new Schemas.Prop("fileB", "string", "Second .wpilog (defaults to 'file')", false)),
+                ToolRegistry::compareSignals));
+
+        add(tools, new SimpleTool("correlate", "Pearson correlation between two signals"
+                + " (nearest-timestamp aligned). Suggests a relationship; never proves causation.",
+                Schemas.object(
+                        new Schemas.Prop("file", "string", "Path to a .wpilog", true),
+                        new Schemas.Prop("entry", "string", "First signal name", true),
+                        new Schemas.Prop("entryB", "string", "Second signal name", true),
+                        new Schemas.Prop("fileB", "string", "Second .wpilog (defaults to 'file')", false)),
+                ToolRegistry::correlate));
+
+        add(tools, new SimpleTool("find_peaks", "Find local maxima in a signal whose prominence"
+                + " exceeds a threshold (current spikes, impact events).",
+                Schemas.object(
+                        new Schemas.Prop("file", "string", "Path to a .wpilog", true),
+                        new Schemas.Prop("entry", "string", "Signal name", true),
+                        new Schemas.Prop("minProminence", "number", "Minimum peak prominence (default 1.0)", false)),
+                ToolRegistry::findPeaks));
+
+        add(tools, new SimpleTool("rate_of_change", "Derivative statistics for a signal (units per"
+                + " second) — max/min slope and when the steepest change happened.",
+                Schemas.object(
+                        new Schemas.Prop("file", "string", "Path to a .wpilog", true),
+                        new Schemas.Prop("entry", "string", "Signal name", true)),
+                ToolRegistry::rateOfChange));
+
+        add(tools, new SimpleTool("data_quality", "Assess how much a signal's sampling actually"
+                + " supports a conclusion (sample count, span, period regularity, confidence).",
+                Schemas.object(
+                        new Schemas.Prop("file", "string", "Path to a .wpilog", true),
+                        new Schemas.Prop("entry", "string", "Signal name", true)),
+                ToolRegistry::dataQuality));
+
         add(tools, new SimpleTool("nt_status", "Connect to a live robot's NetworkTables server and"
                 + " report whether the connection is up (live/real-time; read-only).",
                 Schemas.object(
@@ -208,7 +269,7 @@ final class ToolRegistry {
 
     private static String guide(JsonNode a) {
         return """
-                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT; 24 tools total).
+                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT; 30 tools total).
 
                 Workflow:
                   1) Call profile_show on the team's robot profile so analysis is robot-specific
@@ -219,7 +280,12 @@ final class ToolRegistry {
                      energy-management meta. mode_a runs this whole pass in one call and persists
                      metrics to a trend store.
                   4) Use swerve_analysis, vision_analysis, and anomaly for deeper Mode-B diagnosis
-                     when there's time to chase a specific hypothesis.
+                     when there's time to chase a specific hypothesis. The general-purpose
+                     primitives compose for anything not covered by a named tool: signal_stats
+                     (summarize), rate_of_change (spikes/jerk), find_peaks (impact/current
+                     events), compare_signals (match-over-match or left-vs-right), correlate
+                     (does X move with Y?), data_quality (is this signal even worth trusting?),
+                     and analyze_cycles (scoring throughput from a cycle counter).
                   5) Use pathplanner_show/fudge/set_speed and auto_show/auto_swap_path to propose
                      autonomous adjustments (the only thing teams change at competition).
                   6) Use loop_check/loop_suite to verify a robot-code fix against a written
@@ -342,12 +408,10 @@ final class ToolRegistry {
         return applyOrDryRun(before, after, a.hasNonNull("out") ? a.get("out").asText() : null);
     }
 
-    private static final List<String> SWERVE_CANDIDATES =
-            List.of("DriveVelocity", "SwerveStates", "DriveAppliedVolts", "ModuleVelocity", "Velocity");
-    private static final List<String> VISION_CANDIDATES =
-            List.of("hasTarget", "HasTarget", "NumTags", "TagCount", "TargetsSeen");
-    private static final List<String> LOOP_CANDIDATES =
-            List.of("loopTimeMs", "LoopTime", "codeRuntime", "PeriodicMs", "loopPeriod");
+    private static final List<String> SWERVE_CANDIDATES = SignalResolver.SWERVE;
+    private static final List<String> VISION_CANDIDATES = SignalResolver.VISION;
+    private static final List<String> LOOP_CANDIDATES = SignalResolver.LOOP_PERIOD;
+    private static final List<String> CYCLE_CANDIDATES = SignalResolver.CYCLE_COUNTER;
 
     private static String modeA(JsonNode a) throws Exception {
         WpilogReader r = new WpilogReader(str(a, "file"));
@@ -406,6 +470,91 @@ final class ToolRegistry {
         WpilogReader r = new WpilogReader(str(a, "file"));
         Series s = Series.fromSamples(r.read(str(a, "entry")));
         return AnomalyDetection.detect(s).assessment();
+    }
+
+    private static String analyzeCycles(JsonNode a) throws Exception {
+        WpilogReader r = new WpilogReader(str(a, "file"));
+        String signal = a.hasNonNull("entry") ? a.get("entry").asText()
+                : SignalResolver.resolve(r.index(), CYCLE_CANDIDATES).orElse(null);
+        if (signal == null) {
+            return "No cycle/score counter signal found; pass 'entry' with a monotonic counter name.";
+        }
+        CycleTime.Result res = CycleTime.analyze(Series.fromSamples(r.read(signal)));
+        return "signal: " + signal + "\n" + res.assessment();
+    }
+
+    private static String signalStats(JsonNode a) throws Exception {
+        WpilogReader r = new WpilogReader(str(a, "file"));
+        Series s = Series.fromSamples(r.read(str(a, "entry")));
+        if (s.isEmpty()) {
+            return "(no numeric samples for '" + str(a, "entry") + "')";
+        }
+        Statistics.Result st = Statistics.of(s);
+        return String.format(
+                "signal: %s%nmin=%.4f max=%.4f mean=%.4f median=%.4f stdDev=%.4f p95=%.4f%n%s",
+                str(a, "entry"), st.min(), st.max(), st.mean(), st.median(), st.stdDev(), st.p95(),
+                st.quality().caveat());
+    }
+
+    private static String compareSignals(JsonNode a) throws Exception {
+        Series first = seriesOf(str(a, "file"), str(a, "entry"));
+        String fileB = a.hasNonNull("fileB") ? a.get("fileB").asText() : str(a, "file");
+        String entryB = a.hasNonNull("entryB") ? a.get("entryB").asText() : str(a, "entry");
+        Series second = seriesOf(fileB, entryB);
+        if (first.isEmpty() || second.isEmpty()) {
+            return "One or both signals have no numeric samples; cannot compare.";
+        }
+        return "a: " + str(a, "entry") + "\nb: " + entryB + "\n" + Compare.of(first, second).assessment();
+    }
+
+    private static String correlate(JsonNode a) throws Exception {
+        Series first = seriesOf(str(a, "file"), str(a, "entry"));
+        String fileB = a.hasNonNull("fileB") ? a.get("fileB").asText() : str(a, "file");
+        Series second = seriesOf(fileB, str(a, "entryB"));
+        if (first.isEmpty() || second.isEmpty()) {
+            return "One or both signals have no numeric samples; cannot correlate.";
+        }
+        return "a: " + str(a, "entry") + "\nb: " + str(a, "entryB") + "\n"
+                + Correlation.of(first, second).assessment();
+    }
+
+    private static String findPeaks(JsonNode a) throws Exception {
+        WpilogReader r = new WpilogReader(str(a, "file"));
+        Series s = Series.fromSamples(r.read(str(a, "entry")));
+        double minProminence = a.hasNonNull("minProminence") ? a.get("minProminence").asDouble() : 1.0;
+        PeakFinder.Result res = PeakFinder.find(s, minProminence);
+        StringBuilder sb = new StringBuilder("signal: " + str(a, "entry") + "\n" + res.assessment() + "\n");
+        for (PeakFinder.Peak p : res.peaks()) {
+            sb.append(String.format("  - %.3fs  %.4f%n", p.timeSeconds(), p.value()));
+        }
+        return sb.toString();
+    }
+
+    private static String rateOfChange(JsonNode a) throws Exception {
+        WpilogReader r = new WpilogReader(str(a, "file"));
+        Series s = Series.fromSamples(r.read(str(a, "entry")));
+        if (s.size() < 2) {
+            return "Fewer than two numeric samples for '" + str(a, "entry") + "'; no slope to report.";
+        }
+        RateOfChange.Result res = RateOfChange.of(s);
+        return String.format(
+                "signal: %s%nmaxSlope=%.4f/s (at %.3fs) minSlope=%.4f/s meanAbsSlope=%.4f/s%n%s",
+                str(a, "entry"), res.maxSlope(), res.maxSlopeTimeSeconds(), res.minSlope(),
+                res.meanAbsSlope(), res.quality().caveat());
+    }
+
+    private static String dataQuality(JsonNode a) throws Exception {
+        WpilogReader r = new WpilogReader(str(a, "file"));
+        Series s = Series.fromSamples(r.read(str(a, "entry")));
+        DataQuality q = DataQuality.of(s.timestampsUs());
+        return String.format(
+                "signal: %s%nsamples=%d span=%.2fs medianPeriod=%.2fms maxGap=%.2fms confidence=%s%n%s",
+                str(a, "entry"), q.sampleCount(), q.spanSeconds(), q.medianPeriodMs(), q.maxGapMs(),
+                q.confidence(), q.caveat());
+    }
+
+    private static Series seriesOf(String file, String entry) throws Exception {
+        return Series.fromSamples(new WpilogReader(file).read(entry));
     }
 
     private static int ntPort(JsonNode a) {

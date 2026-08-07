@@ -26,13 +26,13 @@ two modes:
 |---|---|---|
 | 1 · `core-ingest` | ✅ built + tested | `.wpilog` parsing (`DataLogReader`) + struct decoding (Pose2d/SwerveModuleState/…) + SQLite trend store + TBA client + `.revlog` cross-correlation sync |
 | 2 · `profile` | ✅ built + tested | Team/robot profile **bootstrapped** from the repo (pathplanner settings, CAN IDs, vendordeps) + bundled field/game data + mechanisms |
-| 3 · `analysis` | ✅ built + tested | 15 composable primitives with epistemic guardrails: power/brownout, CAN, battery, loop-timing, swerve/PID, vision, cycle-time, anomaly/peaks/correlate/compare |
+| 3 · `analysis` | ✅ built + tested | 15 composable primitives with epistemic guardrails: power/brownout, CAN, battery, loop-timing, swerve/PID, vision, cycle-time, anomaly/peaks/correlate/compare — all reachable from both the MCP server and the `analysis` CLI |
 | 4 · `write-layer` | ✅ built + tested | PathPlanner `.path` + `.auto` editing as reviewable diffs (dry-run by default) + `DeployGate` |
 | 5 · `live-nt` | ✅ built + tested | NT4 live telemetry (read) + safety-scoped write boundary (default-deny whitelist, hard denylist, doubles-only, no CLI write) |
 | 6 · `simreplay` | ✅ built + tested | Agentic closed loop observe→verify: phase-aware assertions + regression suite + sim/replay runner |
 | — · `modes` | ✅ built + tested | Mode A between-match orchestrator (flags + persists metrics to the trend store) |
 | — · `smallmodel` | ✅ built + tested | "Big-AI-trains-small-AI": tiny logistic model over hand-labeled log examples |
-| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **21 tools**; `get_guide` discovery |
+| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **30 tools**; `get_guide` discovery |
 | — · `dashboard` | ✅ Phase 1 & 2 complete | Local web UI (loopback, read-only) — live NT telemetry, health tiles, Signals, Pit, Match, Paths, Trends, and Profile views. See [dashboard/README.md](dashboard/README.md) |
 | — · `vscode-extension` | ✅ compiles | VS Code extension that builds/registers the MCP server |
 
@@ -46,10 +46,17 @@ export GRADLE_USER_HOME="$PWD/.gradle-home"
 ./gradlew build          # compile + test all modules
 ```
 
-Try a module CLI:
+Try a module CLI. Real logs are gitignored (they're data, not source), so generate a synthetic
+150-second match first — it contains a real brownout, a CAN error burst, loop overruns, and vision
+dropouts, so every primitive has something to report:
+
 ```bash
-./gradlew :analysis:installDist
-analysis/build/install/analysis/bin/analysis analyze <match.wpilog>
+./gradlew :core-ingest:installDist :analysis:installDist
+core-ingest/build/install/core-ingest/bin/core-ingest gen demo.wpilog
+
+analysis/build/install/analysis/bin/analysis analyze demo.wpilog   # Mode-A safety sweep
+analysis/build/install/analysis/bin/analysis full    demo.wpilog   # + swerve/vision/cycles
+analysis/build/install/analysis/bin/analysis         # full subcommand list
 ```
 
 ## Roadmap & Next Steps
