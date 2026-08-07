@@ -13,19 +13,29 @@ This document outlines the planned future expansion horizons for the **FRC AI Co
 
 ---
 
-## 🎯 Horizon 0 — Close Competitive Gaps (Highest Priority)
-*Target: Cover the capabilities every competitor has that we're missing.*
+## ✅ COMPLETED: Horizon 0 — Close Competitive Gaps (2026-08-07)
+*Every capability the competitors had and we lacked is now shipped.*
 
-- **Documentation RAG Search (`search_docs` MCP tool)**:
-  - Index WPILib, CTRE Phoenix 6, REV, and PhotonVision docs for semantic search
-  - This is the #1 AI use case for FRC teams and the #1 gap in our tool
-- **Game Manual Rule Lookup (`search_manual` MCP tool)**:
-  - Index the current season's game manual PDF for quick rule references during coding
-- **Cycle Time / Scoring Efficiency Analysis (`analyze_cycles` primitive)**:
-  - Measure intake→score cycle duration from .wpilog data (only wpilog-mcp has this)
-- **Modular Skill Packs (`.agents/skills/`)**:
-  - Create per-vendor skill files (CTRE, REV, PathPlanner, PhotonVision) with API patterns, pitfalls, and code templates
-  - Inspired by FTC-Claude's marketplace model
+- ✅ **Documentation search (`search_docs`, `search_manual`, `knowledge_status`)** — new
+  `:knowledge` module. Local SQLite **FTS5/bm25** index over WPILib, CTRE Phoenix 6,
+  PhotonVision, and PathPlanner docs plus the game manual PDF (page-cited).
+  `knowledge sync` shallow/sparse-clones and indexes all four corpora in one command
+  (~3,600 chunks, ~6 MB, a couple of minutes).
+  - *Design note:* lexical, not embedding-based — no model download, no network, works on a pit
+    laptop with dead wifi. The questions teams ask are dominated by exact API names, where
+    lexical search wins anyway.
+  - *REV is excluded* — it publishes no public docs repo. `knowledge index <db> rev <folder>`
+    picks up a local copy.
+- ✅ **`analyze_cycles`** — the primitive already existed in `:analysis` but was unreachable from
+  outside Java. Now exposed, along with six other orphaned primitives.
+- ✅ **Modular skill packs** — `skills/frc-ctre-phoenix6`, `frc-rev`, `frc-pathplanner`,
+  `frc-photonvision`. They teach durable patterns and pitfalls and delegate versioned API
+  specifics to `search_docs`, since a skill that hardcodes signatures goes stale every season.
+  - *Location note:* these live in `skills/` with the existing four, not a second
+    `.agents/skills/` tree as originally sketched — one skills directory, not two.
+- ✅ **MIT license** + full analysis CLI + a synthetic match-log generator for onboarding.
+
+MCP server is now at **34 tools**.
 
 ---
 

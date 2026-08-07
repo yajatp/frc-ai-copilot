@@ -100,8 +100,18 @@ public final class KnowledgeCli {
         }
         Files.createDirectories(dest.getParent());
         System.out.println("Cloning " + c.name() + " (" + c.description() + ")");
-        // Depth 1: we want the current docs, not years of history.
-        run(null, "git", "clone", "--depth", "1", "--quiet", c.repo(), dest.toString());
+
+        // Some corpora live inside a full product repo — PhotonVision's docs are ~9 MB inside a
+        // ~500 MB source tree. Depth 1 alone still pulls all of it, which is a bad trade on a pit
+        // laptop, so when the docs are in a subdirectory we sparse-checkout just that path.
+        if (!c.subdir().isEmpty()) {
+            run(null, "git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", "--quiet",
+                    c.repo(), dest.toString());
+            run(dest, "git", "sparse-checkout", "set", c.subdir());
+        } else {
+            // Depth 1: we want the current docs, not years of history.
+            run(null, "git", "clone", "--depth", "1", "--quiet", c.repo(), dest.toString());
+        }
     }
 
     private static void run(Path workingDir, String... command) throws IOException, InterruptedException {

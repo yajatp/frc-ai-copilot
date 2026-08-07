@@ -48,9 +48,59 @@ You can sanity-check the module builds in isolation the same way as any other mo
 repo, e.g.:
 
 ```bash
-./gradlew :analysis:installDist
-analysis/build/install/analysis/bin/analysis analyze sample-data/some.wpilog
+./gradlew :core-ingest:installDist :analysis:installDist
+core-ingest/build/install/core-ingest/bin/core-ingest gen demo.wpilog   # synthetic 150 s match
+analysis/build/install/analysis/bin/analysis full demo.wpilog
 ```
+
+Real `.wpilog` files are gitignored (they are data, not source), so `gen` is how you get something
+to point the analysis tools at on a fresh checkout. The generated match deliberately contains a
+brownout, a CAN error burst, loop overruns, and vision dropouts, so every primitive has something
+to report.
+
+## Building the knowledge index (documentation + game manual search)
+
+The `search_docs` and `search_manual` tools read a local index. It is **not** checked in — it is
+built from vendor documentation repositories, and it is one portable SQLite file you can build
+once and copy to every laptop.
+
+```bash
+./gradlew :knowledge:installDist
+K=knowledge/build/install/knowledge/bin/knowledge
+
+# Clone + index WPILib, CTRE Phoenix 6, PhotonVision and PathPlanner docs.
+# Uses shallow, sparse clones — it pulls the docs, not entire product repos.
+$K sync .knowledge/frc.kdb .knowledge
+
+$K status .knowledge/frc.kdb        # what got indexed
+$K search .knowledge/frc.kdb "how do I desaturate swerve wheel speeds"
+$K ask    .knowledge/frc.kdb ctre "how do I set a stator current limit"
+```
+
+Typical result: roughly 3,600 chunks in a ~6 MB file, built in a couple of minutes.
+
+**Game manual.** Download the season's manual PDF, then:
+
+```bash
+$K manual .knowledge/frc.kdb ~/Downloads/2026-game-manual.pdf
+```
+
+Manual results carry the **page number** the passage came from, so a cited rule can be checked.
+
+**REV documentation** is not included: REV publishes no public documentation repository. If your
+team keeps a local copy, index it like any other folder and it becomes searchable alongside the
+rest:
+
+```bash
+$K index .knowledge/frc.kdb rev ~/Documents/rev-docs
+```
+
+The MCP tools default to `.knowledge/frc.kdb` relative to the working directory; every knowledge
+tool also accepts an explicit `db` argument if you keep the index elsewhere.
+
+Search is lexical (SQLite FTS5, bm25-ranked) rather than embedding-based — deliberately, so it
+works with no model download and no network on a pit laptop with dead wifi, which is exactly when
+you need it most.
 
 ## Registering with Claude Code
 

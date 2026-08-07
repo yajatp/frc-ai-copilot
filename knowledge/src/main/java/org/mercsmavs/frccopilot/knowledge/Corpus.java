@@ -26,7 +26,7 @@ public record Corpus(String name, String repo, String subdir, String urlBase, St
             new Corpus(
                     "ctre",
                     "https://github.com/CrossTheRoadElec/Phoenix6-Documentation.git",
-                    "docs/source",
+                    "source",
                     "https://v6.docs.ctr-electronics.com/en/stable",
                     "CTRE Phoenix 6 documentation"),
             new Corpus(
@@ -38,9 +38,9 @@ public record Corpus(String name, String repo, String subdir, String urlBase, St
             new Corpus(
                     "pathplanner",
                     "https://github.com/mjansen4857/pathplanner.git",
-                    "",
+                    "Writerside/topics",
                     "https://pathplanner.dev",
-                    "PathPlanner documentation and README material"));
+                    "PathPlanner documentation (JetBrains Writerside source)"));
 
     public static Corpus byName(String name) {
         return KNOWN.stream()
