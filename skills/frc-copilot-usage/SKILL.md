@@ -1,17 +1,20 @@
 ---
 name: frc-copilot-usage
-description: How to use the frc-ai-copilot MCP server's 24 tools (get_guide, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, pathplanner_show/fudge/set_speed, auto_show/auto_swap_path, loop_check/loop_suite, mode_a, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
+description: How to use the frc-ai-copilot MCP server's 34 tools (get_guide, search_docs/search_manual/knowledge_status, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, signal_stats/data_quality/find_peaks/rate_of_change/correlate/compare_signals/analyze_cycles, pathplanner_show/fudge/set_speed, auto_show/auto_swap_path, loop_check/loop_suite, mode_a, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
 ---
 
 # Using the frc-ai-copilot MCP tools
 
-The `frc-copilot` MCP server exposes 24 tools over stdio (see `docs/SETUP.md` for registration).
+The `frc-copilot` MCP server exposes 34 tools over stdio (see `docs/SETUP.md` for registration).
 This skill is about *how* to sequence them, not what each one does internally — see the tool
 descriptions themselves (`tools/list`) for exact schemas.
 
 | Tool | Args | Purpose |
 |---|---|---|
 | `get_guide` | — | Read first. Workflow + epistemic guardrails. |
+| `search_docs` | `query`, `source?`, `limit?`, `db?` | Search the offline docs index (wpilib/ctre/photonvision/pathplanner). Use before answering any API question. |
+| `search_manual` | `query`, `limit?`, `db?` | Search the indexed game manual PDF; returns the passage **and its page number**. |
+| `knowledge_status` | `db?` | What is indexed. Call this when a search returns nothing. |
 | `profile_show` | `profile` | Print a robot's YAML profile (CAN map, drivetrain, subsystems). |
 | `log_info` | `file` | Version/entry-count/duration summary of a `.wpilog`. |
 | `log_entries` | `file`, `filter?` | List signal names in a log, optionally substring-filtered. |
@@ -24,6 +27,13 @@ descriptions themselves (`tools/list`) for exact schemas.
 | `swerve_analysis` | `file`, `entry?` | Detect underdamped/oscillating closed-loop behavior (hedged PID guidance). |
 | `vision_analysis` | `file` | Vision detection rate / dropouts from a hasTarget or tag-count signal. |
 | `anomaly` | `file`, `entry` | Robust (MAD) outlier detection on one signal. |
+| `signal_stats` | `file`, `entry` | min/max/mean/median/stdDev/p95 with a data-quality block. |
+| `data_quality` | `file`, `entry` | Is this signal sampled well enough to conclude anything? |
+| `find_peaks` | `file`, `entry`, `minProminence?` | Local maxima — current spikes, impact events. |
+| `rate_of_change` | `file`, `entry` | Derivative stats (units/s) and when the steepest change happened. |
+| `correlate` | `file`, `entry`, `entryB`, `fileB?` | Pearson correlation, nearest-timestamp aligned. Suggests, never proves. |
+| `compare_signals` | `file`, `entry`, `entryB?`, `fileB?` | Compare two signals — match-over-match, or left vs right. |
+| `analyze_cycles` | `file`, `entry?` | Scoring throughput from a cycle counter (count, mean/median/fastest). |
 | `pathplanner_show` | `path` | Summarize a `.path` file's waypoints/constraints. |
 | `pathplanner_fudge` | `path`, `index`, `dx`, `dy`, `out?` | Propose shifting one waypoint by (dx, dy) meters. Dry-run unless `out` given. |
 | `pathplanner_set_speed` | `path`, `maxVelocity`, `maxAcceleration`, `out?` | Propose new global speed/accel constraints. Dry-run unless `out` given. |
@@ -124,7 +134,7 @@ No time pressure. This is where season-long and multi-log reasoning happens.
   regression suite — before considering the fix done. This is what makes "the agent edited the
   code" a checked claim instead of a guess.
 - This skill covers every tool the server currently exposes (Modules 1–6, `modes`, and `live-nt`
-  — 24 tools as of this writing). `smallmodel` (the big-AI-trains-small-AI technique) is built and
+  — 34 tools as of this writing). `smallmodel` (the big-AI-trains-small-AI technique) is built and
   tested but not yet wired into an MCP tool. Tool count and shape will keep changing as the
   server grows; re-check `tools/list` (or `get_guide`) rather than assuming this table is
   exhaustive forever.

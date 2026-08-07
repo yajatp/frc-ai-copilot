@@ -26,6 +26,8 @@ import org.mercsmavs.frccopilot.analysis.VisionAnalysis;
 import org.mercsmavs.frccopilot.ingest.LogEntry;
 import org.mercsmavs.frccopilot.ingest.WpilogReader;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import org.mercsmavs.frccopilot.knowledge.KnowledgeIndex;
+import org.mercsmavs.frccopilot.knowledge.SearchHit;
 import org.mercsmavs.frccopilot.ingest.store.LogSummary;
 import org.mercsmavs.frccopilot.ingest.store.TrendStore;
 import org.mercsmavs.frccopilot.livent.NtClient;
@@ -227,6 +229,31 @@ final class ToolRegistry {
                         new Schemas.Prop("entry", "string", "Signal name", true)),
                 ToolRegistry::dataQuality));
 
+        add(tools, new SimpleTool("search_docs", "Search the offline documentation index (WPILib,"
+                + " CTRE Phoenix 6, PhotonVision, PathPlanner) with a natural-language question."
+                + " Use this before answering any API question from memory — the docs are"
+                + " versioned and your recollection of them is not.",
+                Schemas.object(
+                        new Schemas.Prop("query", "string", "A natural-language question or API name", true),
+                        new Schemas.Prop("source", "string", "Restrict to one corpus: wpilib | ctre | photonvision | pathplanner", false),
+                        new Schemas.Prop("limit", "integer", "Max results (default 6)", false),
+                        new Schemas.Prop("db", "string", "Index path (default .knowledge/frc.kdb)", false)),
+                ToolRegistry::searchDocs));
+
+        add(tools, new SimpleTool("search_manual", "Search the indexed game manual PDF for a rule."
+                + " Returns the passage and its page number so the rule can be verified. Never"
+                + " state a rule from memory — cite the page.",
+                Schemas.object(
+                        new Schemas.Prop("query", "string", "Rule code (e.g. G410) or a question", true),
+                        new Schemas.Prop("limit", "integer", "Max results (default 6)", false),
+                        new Schemas.Prop("db", "string", "Index path (default .knowledge/frc.kdb)", false)),
+                ToolRegistry::searchManual));
+
+        add(tools, new SimpleTool("knowledge_status", "Show which documentation corpora are indexed"
+                + " and how large each is. Call this if a search returns nothing.",
+                Schemas.object(new Schemas.Prop("db", "string", "Index path (default .knowledge/frc.kdb)", false)),
+                ToolRegistry::knowledgeStatus));
+
         add(tools, new SimpleTool("nt_status", "Connect to a live robot's NetworkTables server and"
                 + " report whether the connection is up (live/real-time; read-only).",
                 Schemas.object(
@@ -269,9 +296,14 @@ final class ToolRegistry {
 
     private static String guide(JsonNode a) {
         return """
-                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT; 30 tools total).
+                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT + docs; 34 tools).
 
                 Workflow:
+                  0) For any API or rules question, call search_docs / search_manual FIRST. The
+                     index holds the actual WPILib, CTRE Phoenix 6, PhotonVision and PathPlanner
+                     documentation, and the season game manual with page numbers. FRC APIs change
+                     every season and rules change every year — answering from memory is how you
+                     hand a team a method that no longer exists or a rule that was revised.
                   1) Call profile_show on the team's robot profile so analysis is robot-specific
                      (CAN map, drivetrain, current limit, subsystems).
                   2) Use log_info / log_entries / read_entry to explore a match log.
@@ -555,6 +587,68 @@ final class ToolRegistry {
 
     private static Series seriesOf(String file, String entry) throws Exception {
         return Series.fromSamples(new WpilogReader(file).read(entry));
+    }
+
+    /** Where the knowledge index lives unless a call overrides it. */
+    private static final String DEFAULT_KNOWLEDGE_DB = ".knowledge/frc.kdb";
+
+    private static String knowledgeDb(JsonNode a) {
+        return a.hasNonNull("db") ? a.get("db").asText() : DEFAULT_KNOWLEDGE_DB;
+    }
+
+    private static String searchDocs(JsonNode a) throws Exception {
+        String source = a.hasNonNull("source") ? a.get("source").asText() : null;
+        return knowledgeSearch(knowledgeDb(a), str(a, "query"), source, limitOf(a));
+    }
+
+    private static String searchManual(JsonNode a) throws Exception {
+        return knowledgeSearch(knowledgeDb(a), str(a, "query"), "manual", limitOf(a));
+    }
+
+    private static int limitOf(JsonNode a) {
+        return a.hasNonNull("limit") ? Math.max(1, Math.min(20, a.get("limit").asInt())) : 6;
+    }
+
+    private static String knowledgeSearch(String db, String query, String source, int limit) throws Exception {
+        if (!java.nio.file.Files.exists(Path.of(db))) {
+            return "No knowledge index at " + db + ".\n"
+                    + "Build one with:  knowledge sync " + db + " .knowledge\n"
+                    + "For the game manual:  knowledge manual " + db + " <manual.pdf>";
+        }
+        try (KnowledgeIndex index = new KnowledgeIndex(db)) {
+            List<SearchHit> hits = index.search(query, source, limit);
+            if (hits.isEmpty()) {
+                String scope = source == null ? "the indexed docs" : "the '" + source + "' corpus";
+                return "No matches in " + scope + " for: " + query
+                        + "\nCall knowledge_status to see what is actually indexed.";
+            }
+            StringBuilder sb = new StringBuilder();
+            for (SearchHit h : hits) {
+                sb.append(h.render()).append("\n\n");
+            }
+            sb.append("(Lexical search over the indexed docs — these are the passages that matched, ")
+                    .append("not a verified answer. Read the passage before relying on it.)");
+            return sb.toString();
+        }
+    }
+
+    private static String knowledgeStatus(JsonNode a) throws Exception {
+        String db = knowledgeDb(a);
+        if (!java.nio.file.Files.exists(Path.of(db))) {
+            return "No knowledge index at " + db + ". Build one with: knowledge sync " + db + " .knowledge";
+        }
+        try (KnowledgeIndex index = new KnowledgeIndex(db)) {
+            Map<String, Integer> sources = index.sources();
+            if (sources.isEmpty()) {
+                return "Index exists at " + db + " but nothing is indexed yet.";
+            }
+            StringBuilder sb = new StringBuilder("Indexed corpora in " + db + ":\n");
+            sources.forEach((name, count) -> sb.append(String.format("  %-14s %d chunks%n", name, count)));
+            if (!sources.containsKey("manual")) {
+                sb.append("  (no game manual indexed — run: knowledge manual ").append(db).append(" <manual.pdf>)\n");
+            }
+            return sb.toString();
+        }
     }
 
     private static int ntPort(JsonNode a) {

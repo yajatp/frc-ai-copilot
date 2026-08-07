@@ -32,7 +32,7 @@ two modes:
 | 6 · `simreplay` | ✅ built + tested | Agentic closed loop observe→verify: phase-aware assertions + regression suite + sim/replay runner |
 | — · `modes` | ✅ built + tested | Mode A between-match orchestrator (flags + persists metrics to the trend store) |
 | — · `smallmodel` | ✅ built + tested | "Big-AI-trains-small-AI": tiny logistic model over hand-labeled log examples |
-| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **30 tools**; `get_guide` discovery |
+| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **34 tools**; `get_guide` discovery |
 | — · `dashboard` | ✅ Phase 1 & 2 complete | Local web UI (loopback, read-only) — live NT telemetry, health tiles, Signals, Pit, Match, Paths, Trends, and Profile views. See [dashboard/README.md](dashboard/README.md) |
 | — · `vscode-extension` | ✅ compiles | VS Code extension that builds/registers the MCP server |
 
@@ -68,5 +68,5 @@ Built independently, but informed by prior art in the FRC ecosystem — WPILib, 
 254's 2026 Championship talk directly inspired the agentic closed-loop design.
 
 ## License
-TBD (intended to be permissive / open-source). Not yet finalized.
+[MIT](LICENSE) — use it, fork it, ship it on your robot. Attribution appreciated, not required.
 

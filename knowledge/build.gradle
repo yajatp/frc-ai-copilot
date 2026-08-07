@@ -1,0 +1,23 @@
+// Horizon 0 — Knowledge layer: offline documentation + game-manual search.
+//
+// The ranking engine is SQLite FTS5 (bm25) rather than a hand-rolled scorer or an embedding
+// model: it is already on the classpath via sqlite-jdbc, needs no model download, and works on a
+// pit laptop with no wifi — which is the whole point.
+apply plugin: 'application'
+
+dependencies {
+    implementation 'org.xerial:sqlite-jdbc:3.46.1.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+
+    // Game manuals ship as PDFs; this is the only way to read them.
+    implementation 'org.apache.pdfbox:pdfbox:3.0.3'
+
+    runtimeOnly 'org.slf4j:slf4j-nop:2.0.13' // silence sqlite-jdbc + pdfbox logging bindings
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'org.mercsmavs.frccopilot.knowledge.KnowledgeCli'
+}
