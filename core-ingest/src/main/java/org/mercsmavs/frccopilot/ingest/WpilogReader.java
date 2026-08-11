@@ -101,6 +101,132 @@ public final class WpilogReader {
         return samples;
     }
 
+    /** Aggregate shape of one numeric signal, accumulated without retaining its samples. */
+    public static final class NumericSummary {
+        public final String name;
+        public final String type;
+        private long count;
+        private double min = Double.POSITIVE_INFINITY;
+        private double max = Double.NEGATIVE_INFINITY;
+        private double sum;
+        private double first;
+        private double last;
+        private boolean nonDecreasing = true;
+        private boolean nonIncreasing = true;
+
+        NumericSummary(String name, String type) {
+            this.name = name;
+            this.type = type;
+        }
+
+        void add(double v) {
+            if (count == 0) {
+                first = v;
+            } else {
+                nonDecreasing &= v >= last;
+                nonIncreasing &= v <= last;
+            }
+            last = v;
+            count++;
+            sum += v;
+            min = Math.min(min, v);
+            max = Math.max(max, v);
+        }
+
+        public long count() {
+            return count;
+        }
+
+        public double min() {
+            return count == 0 ? Double.NaN : min;
+        }
+
+        public double max() {
+            return count == 0 ? Double.NaN : max;
+        }
+
+        public double mean() {
+            return count == 0 ? Double.NaN : sum / count;
+        }
+
+        public double first() {
+            return count == 0 ? Double.NaN : first;
+        }
+
+        public double last() {
+            return count == 0 ? Double.NaN : last;
+        }
+
+        /** True for a signal that never decreases — the shape of a score/cycle counter. */
+        public boolean monotonicIncreasing() {
+            return count > 1 && nonDecreasing && max > min;
+        }
+
+        public boolean monotonicDecreasing() {
+            return count > 1 && nonIncreasing && max > min;
+        }
+
+        /** True when every sample held the same value (a signal that never moved). */
+        public boolean constant() {
+            return count > 0 && min == max;
+        }
+    }
+
+    /**
+     * Summarize every numeric signal in the log in a <em>single</em> pass, retaining only aggregate
+     * statistics. Comparing two runs means touching all signals at once, where the per-name
+     * {@link #read(String)} would rescan the file once per signal.
+     */
+    public Map<String, NumericSummary> numericSummaries() {
+        return numericSummaries(ts -> true);
+    }
+
+    /**
+     * As {@link #numericSummaries()}, but counting only samples whose timestamp passes the filter —
+     * used to summarize a single match phase (autonomous, say) rather than the whole log.
+     */
+    public Map<String, NumericSummary> numericSummaries(java.util.function.LongPredicate timestampFilter) {
+        Map<Integer, NumericSummary> byId = new LinkedHashMap<>();
+        Map<Integer, String> typeById = new LinkedHashMap<>();
+        Map<String, NumericSummary> byName = new LinkedHashMap<>();
+        for (DataLogRecord record : reader) {
+            if (record.isStart()) {
+                DataLogRecord.StartRecordData start = record.getStartData();
+                if (isNumericType(start.type)) {
+                    NumericSummary summary =
+                            byName.computeIfAbsent(start.name, n -> new NumericSummary(n, start.type));
+                    byId.put(start.entry, summary);
+                    typeById.put(start.entry, start.type);
+                }
+            } else if (!record.isControl()) {
+                NumericSummary summary = byId.get(record.getEntry());
+                if (summary != null && timestampFilter.test(record.getTimestamp())) {
+                    Double v = asDouble(decode(record, typeById.get(record.getEntry())));
+                    if (v != null) {
+                        summary.add(v);
+                    }
+                }
+            }
+        }
+        return byName;
+    }
+
+    private static boolean isNumericType(String type) {
+        return switch (type) {
+            case "double", "float", "int64", "boolean" -> true;
+            default -> false;
+        };
+    }
+
+    private static Double asDouble(Object value) {
+        if (value instanceof Double d) return d;
+        if (value instanceof Float f) return (double) f;
+        if (value instanceof Long l) return (double) l;
+        if (value instanceof Integer i) return (double) i;
+        if (value instanceof Boolean b) return b ? 1.0 : 0.0;
+        return null;
+    }
+
     /** Decode a data record according to its declared WPILOG type string. */
     static Object decode(DataLogRecord record, String type) {
         try {

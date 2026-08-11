@@ -34,7 +34,12 @@ import org.mercsmavs.frccopilot.livent.NtClient;
 import org.mercsmavs.frccopilot.modes.ModeA;
 import org.mercsmavs.frccopilot.profile.ProfileMapper;
 import org.mercsmavs.frccopilot.profile.RobotProfile;
+import org.mercsmavs.frccopilot.simreplay.LogDiff;
+import org.mercsmavs.frccopilot.simreplay.LoopConfig;
+import org.mercsmavs.frccopilot.simreplay.LoopRunner;
+import org.mercsmavs.frccopilot.simreplay.LoopSession;
 import org.mercsmavs.frccopilot.simreplay.RegressionSuite;
+import org.mercsmavs.frccopilot.simreplay.ScenarioGenerator;
 import org.mercsmavs.frccopilot.simreplay.Scenario;
 import org.mercsmavs.frccopilot.simreplay.Verifier;
 import org.mercsmavs.frccopilot.write.AutoFile;
@@ -139,6 +144,48 @@ final class ToolRegistry {
                         new Schemas.Prop("log", "string", "Path to a .wpilog", true),
                         new Schemas.Prop("scenarioDir", "string", "Directory of scenario .yaml files", true)),
                 ToolRegistry::loopSuite));
+
+        add(tools, new SimpleTool("loop_iterate", "Run ONE full turn of the agentic closed loop:"
+                + " rebuild the robot code, run it headless, verify every scenario against the log it"
+                + " produced, and diagnose what failed. Use this after editing robot code — it reports"
+                + " build errors, missing logs, and misbehaviour as distinct outcomes, and says which"
+                + " checked values moved since your last edit. Requires a loop.yaml in the project.",
+                Schemas.object(
+                        new Schemas.Prop("config", "string",
+                                "Path to loop.yaml or a directory inside the project (default: cwd)", false),
+                        new Schemas.Prop("scenario", "string",
+                                "Check a single scenario .yaml instead of the whole suite", false)),
+                ToolRegistry::loopIterate));
+
+        add(tools, new SimpleTool("loop_history", "The iteration journal for a project: every"
+                + " previous turn, which source files changed, and how each checked value moved."
+                + " Read this when resuming work to see what has already been tried.",
+                Schemas.object(
+                        new Schemas.Prop("config", "string",
+                                "Path to loop.yaml or a directory inside the project (default: cwd)", false)),
+                ToolRegistry::loopHistory));
+
+        add(tools, new SimpleTool("loop_generate", "Derive a regression scenario from a run that is"
+                + " known to be good, so a verified fix can be banked as a standing check. Proposes"
+                + " thresholds for counters, battery voltage, loop period, and converging errors."
+                + " Dry-run unless 'out' is given. Review the thresholds — they encode one run.",
+                Schemas.object(
+                        new Schemas.Prop("log", "string", "Path to a known-good .wpilog", true),
+                        new Schemas.Prop("out", "string", "Where to write the scenario (omit for dry-run)", false),
+                        new Schemas.Prop("name", "string", "Scenario name", false),
+                        new Schemas.Prop("phaseSignal", "string",
+                                "Scope every check to a phase, e.g. /Robot/State", false),
+                        new Schemas.Prop("phaseEquals", "string", "The phase value, e.g. AUTO", false)),
+                ToolRegistry::loopGenerate));
+
+        add(tools, new SimpleTool("loop_diff", "Rank how far a run diverged from a known-good"
+                + " baseline log, signal by signal. The largest divergence usually sits closest to the"
+                + " cause; signals present in only one log point at a rename or a subsystem that"
+                + " never initialized.",
+                Schemas.object(
+                        new Schemas.Prop("baseline", "string", "Path to the known-good .wpilog", true),
+                        new Schemas.Prop("log", "string", "Path to the run being investigated", true)),
+                ToolRegistry::loopDiff));
 
         add(tools, new SimpleTool("mode_a", "Mode A between-match pass: ingest a log, flag"
                 + " brownout/battery/CAN/loop issues, and persist metrics to the trend store.",
@@ -736,6 +783,45 @@ final class ToolRegistry {
         return RegressionSuite.runAll(scenarios, r::read).render();
     }
 
+    private static String loopIterate(JsonNode a) throws Exception {
+        LoopConfig config = LoopConfig.load(LoopConfig.discover(Path.of(optional(a, "config", ""))));
+        String scenario = optional(a, "scenario", null);
+        LoopRunner.IterationReport report =
+                LoopRunner.iterate(config, scenario == null ? null : Path.of(scenario));
+        return report.render();
+    }
+
+    private static String loopHistory(JsonNode a) throws Exception {
+        LoopConfig config = LoopConfig.load(LoopConfig.discover(Path.of(optional(a, "config", ""))));
+        return LoopSession.load(config.loopStateDir().resolve("session.json")).render();
+    }
+
+    private static String loopGenerate(JsonNode a) throws Exception {
+        WpilogReader r = new WpilogReader(str(a, "log"));
+        String out = optional(a, "out", null);
+        String name = optional(a, "name", "generated_scenario");
+        Scenario scenario = ScenarioGenerator.generate(
+                r, name, optional(a, "phaseSignal", null), optional(a, "phaseEquals", null),
+                ScenarioGenerator.DEFAULT_TOLERANCE);
+        if (scenario.assertions().isEmpty()) {
+            return "No signal in " + str(a, "log") + " had a shape worth asserting (a counter,"
+                    + " battery voltage, loop period, or a converging error). Write the scenario"
+                    + " by hand instead.";
+        }
+        String yaml = scenario.toYaml();
+        if (out == null) {
+            return "Proposed scenario (dry run — pass 'out' to write it):\n" + yaml;
+        }
+        scenario.save(Path.of(out));
+        return "Wrote " + scenario.assertions().size() + " generated checks to " + out + "\n" + yaml;
+    }
+
+    private static String loopDiff(JsonNode a) throws Exception {
+        LogDiff.Result result = LogDiff.compare(
+                new WpilogReader(str(a, "baseline")), new WpilogReader(str(a, "log")));
+        return result.render(20);
+    }
+
     private static String applyOrDryRun(PathFile before, PathFile after, String out) throws Exception {
         List<PathDiff.Change> changes = PathDiff.diff(before.root(), after.root());
         if (changes.isEmpty()) {
@@ -759,6 +845,15 @@ final class ToolRegistry {
         if (v instanceof boolean[] b) return java.util.Arrays.toString(b);
         if (v instanceof Object[] o) return java.util.Arrays.toString(o);
         return String.valueOf(v);
+    }
+
+    /** Read an optional string argument, falling back when absent, null, or blank. */
+    private static String optional(JsonNode args, String key, String fallback) {
+        JsonNode v = args == null ? null : args.get(key);
+        if (v == null || v.isNull() || v.asText().isBlank()) {
+            return fallback;
+        }
+        return v.asText();
     }
 
     private static String str(JsonNode args, String key) {

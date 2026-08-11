@@ -80,10 +80,10 @@ public record Assertion(
     }
 
     private List<Double> numericValuesInPhase(SignalSource source, List<WpilogReader.Sample> samples) {
-        List<long[]> windows = phaseSignal == null ? null : phaseWindows(source);
+        PhaseWindows windows = phaseSignal == null ? null : PhaseWindows.of(source, phaseSignal, phaseEquals);
         List<Double> out = new ArrayList<>();
         for (WpilogReader.Sample s : samples) {
-            if (windows != null && !inAnyWindow(s.timestampUs(), windows)) {
+            if (windows != null && !windows.contains(s.timestampUs())) {
                 continue;
             }
             Double v = numeric(s.value());
@@ -92,35 +92,6 @@ public record Assertion(
             }
         }
         return out;
-    }
-
-    /** Build [start,end) timestamp windows where the phase signal equals the target string value. */
-    private List<long[]> phaseWindows(SignalSource source) {
-        List<WpilogReader.Sample> phase = source.read(phaseSignal);
-        List<long[]> windows = new ArrayList<>();
-        long start = -1;
-        for (int i = 0; i < phase.size(); i++) {
-            boolean match = String.valueOf(phase.get(i).value()).equals(phaseEquals);
-            if (match && start < 0) {
-                start = phase.get(i).timestampUs();
-            } else if (!match && start >= 0) {
-                windows.add(new long[] {start, phase.get(i).timestampUs()});
-                start = -1;
-            }
-        }
-        if (start >= 0) {
-            windows.add(new long[] {start, Long.MAX_VALUE});
-        }
-        return windows;
-    }
-
-    private static boolean inAnyWindow(long ts, List<long[]> windows) {
-        for (long[] w : windows) {
-            if (ts >= w[0] && ts < w[1]) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private double aggregate(List<Double> values) {

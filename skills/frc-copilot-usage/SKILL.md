@@ -1,11 +1,11 @@
 ---
 name: frc-copilot-usage
-description: How to use the frc-ai-copilot MCP server's 34 tools (get_guide, search_docs/search_manual/knowledge_status, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, signal_stats/data_quality/find_peaks/rate_of_change/correlate/compare_signals/analyze_cycles, pathplanner_show/fudge/set_speed, auto_show/auto_swap_path, loop_check/loop_suite, mode_a, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
+description: How to use the frc-ai-copilot MCP server's 38 tools (get_guide, search_docs/search_manual/knowledge_status, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, signal_stats/data_quality/find_peaks/rate_of_change/correlate/compare_signals/analyze_cycles, pathplanner_show/fudge/set_speed, auto_show/auto_swap_path, loop_check/loop_suite/loop_iterate/loop_history/loop_generate/loop_diff, mode_a, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
 ---
 
 # Using the frc-ai-copilot MCP tools
 
-The `frc-copilot` MCP server exposes 34 tools over stdio (see `docs/SETUP.md` for registration).
+The `frc-copilot` MCP server exposes 38 tools over stdio (see `docs/SETUP.md` for registration).
 This skill is about *how* to sequence them, not what each one does internally — see the tool
 descriptions themselves (`tools/list`) for exact schemas.
 
@@ -41,6 +41,10 @@ descriptions themselves (`tools/list`) for exact schemas.
 | `auto_swap_path` | `auto`, `oldName`, `newName`, `out?` | Propose swapping a path reference in a `.auto`. Dry-run unless `out` given. |
 | `loop_check` | `log`, `scenario` | Verify one scenario's success criteria against a log — the closed loop's "verify" step. |
 | `loop_suite` | `log`, `scenarioDir` | Run a whole regression suite (a directory of scenarios) against a log. |
+| `loop_iterate` | `config?`, `scenario?` | Run ONE full turn of the closed loop: rebuild the robot code, run it headless, verify every scenario, diagnose failures. Use after editing robot code. Needs a `loop.yaml`. |
+| `loop_history` | `config?` | The iteration journal: previous turns, which files changed, how each checked value moved. Read when resuming work. |
+| `loop_generate` | `log`, `out?`, `name?`, `phaseSignal?`, `phaseEquals?` | Derive a regression scenario from a known-good run. Dry-run unless `out` given. |
+| `loop_diff` | `baseline`, `log` | Rank how far a run diverged from a known-good baseline, signal by signal. |
 | `mode_a` | `db`, `file` | Run the full Mode A between-match pass and persist metrics to the trend store (wraps `power_analysis`/`battery_health`/`can_health`/`loop_timing`). |
 | `nt_status` | `host`, `port?` | Check whether a live robot's NetworkTables connection is up. Read-only. |
 | `nt_get` | `host`, `key`, `port?` | Read one live NetworkTables value by key. Read-only. |
@@ -133,8 +137,18 @@ No time pressure. This is where season-long and multi-log reasoning happens.
   sim/replay, check the resulting log against a written success criterion — or a whole banked
   regression suite — before considering the fix done. This is what makes "the agent edited the
   code" a checked claim instead of a guess.
+- **`loop_iterate`** runs the *whole* turn when the project has a `loop.yaml`: rebuild, run
+  headless, verify, diagnose. Prefer it over hand-chaining a build, a run, and `loop_check` —
+  it reports a build failure, a missing log, and actual misbehaviour as distinct outcomes, and
+  tells you which checked values moved since your last edit. Full workflow:
+  [docs/CLOSED-LOOP.md](../../docs/CLOSED-LOOP.md).
+  - Read the failure *kind*, not just FAIL. `SIGNAL_CONSTANT` means the mechanism never ran
+    (look for an unscheduled command or a mis-routed action); `SHORTFALL` means it ran and fell
+    short (gains or timing); `SIGNAL_ABSENT` usually means a renamed log key, not a robot fault.
+  - When a turn passes, bank it: `loop_generate` on that log turns the fix into a standing check,
+    so the same regression cannot come back silently.
 - This skill covers every tool the server currently exposes (Modules 1–6, `modes`, and `live-nt`
-  — 34 tools as of this writing). `smallmodel` (the big-AI-trains-small-AI technique) is built and
+  — 38 tools as of this writing). `smallmodel` (the big-AI-trains-small-AI technique) is built and
   tested but not yet wired into an MCP tool. Tool count and shape will keep changing as the
   server grows; re-check `tools/list` (or `get_guide`) rather than assuming this table is
   exhaustive forever.

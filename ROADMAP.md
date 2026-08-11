@@ -43,12 +43,44 @@ MCP server is now at **34 tools**.
 ## 🧭 Horizon 1 — Deepening Agentic Sim/Replay (Module 6)
 *Target: 254-style closed-loop robot code iteration in headless simulation.*
 
-- **Echo Swerve Simulation in the Loop**:
-  - Extend the `example-robot` physics model (`maple-sim`) to include 3D game piece intake, hopper packing, and scoring physics.
-  - Enable AI agents to run headless auto and teleop routines end-to-end, observe logged telemetry, diagnose mapping or PID flaws, edit code, and re-verify.
-- **Automated Match Regression Test Suite Generator**:
-  - Build a tool that automatically generates standing regression test cases from historical match `.wpilog` files.
-  - Any proposed robot code change must pass the entire historical regression suite before deployment.
+### ✅ COMPLETE: the closed loop itself (2026-08-07)
+*Full documentation: [docs/CLOSED-LOOP.md](docs/CLOSED-LOOP.md)*
+
+The harness previously proved only observe→verify. The full **edit → build → run → verify →
+diagnose → iterate** cycle now runs against real sim-in-the-loop as a single command
+(`loop iterate` / the `loop_iterate` MCP tool):
+
+- ✅ **`loop.yaml` project declaration** — a robot project states how to build, how to run, where the
+  log lands, and what "working" means, so a turn takes no arguments. Discovered by walking up from
+  the working directory, the way `git` finds its root.
+- ✅ **Distinct outcomes** — `BUILD_FAILED` (with the compiler output), `RUN_FAILED` / `NO_LOG`,
+  `CHECKS_FAILED`, `PASSED`. These call for different next actions, so they are not collapsed into
+  one FAIL. A failing build short-circuits before the simulator runs.
+- ✅ **Failure diagnosis** — failures are classified by shape (`SIGNAL_CONSTANT` = the mechanism
+  never ran; `SHORTFALL` = it ran and fell short; `SIGNAL_ABSENT` = probably a renamed log key, with
+  the closest present keys named; `NO_SAMPLES_IN_PHASE`), because each points at a different file.
+- ✅ **Baseline signal divergence (`loop_diff`)** — ranks every signal by how far the run moved from a
+  known-good log, normalized per signal so different units stay comparable. The largest divergence
+  usually sits closest to the cause.
+- ✅ **Iteration journal (`loop_history`)** — records which source files changed (content hashes, not
+  timestamps) and how every checked value moved, on disk rather than in conversation context. "Did
+  my last edit help" survives a session restart.
+- ✅ **Regression suite generator (`loop_generate`)** — derives scenarios from a known-good `.wpilog`,
+  proposing checks only for signals with a shape worth defending (counters, battery voltage, loop
+  period, converging errors). Measures inside the same phase window the checks evaluate in, so a
+  generated scenario always passes the log it came from.
+- ✅ **`example-robot` wired as a worked example** — a real WPILib command-based robot on maple-sim
+  physics, running headless through the actual command scheduler in ~1 s per turn.
+
+MCP server is now at **38 tools**.
+
+### Remaining
+- **Echo Swerve Simulation depth**:
+  - Extend the `example-robot` physics model (`maple-sim`) to include 3D game piece intake, hopper packing, and scoring physics. The loop mechanics are done; this deepens what the simulation can express.
+  - Teleop routines end-to-end (autonomous is covered today).
+- **Regression suites from historical match logs**:
+  - `loop_generate` derives scenarios from a single known-good run. The next step is deriving them across a season's real match logs, so the envelope reflects many runs rather than one.
+  - Gate deployment on the full historical suite.
 
 ---
 

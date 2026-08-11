@@ -31,3 +31,6 @@ local.properties
 # Local documentation checkouts + built knowledge index (data, not source)
 /.knowledge/
 *.kdb
+
+# Closed-loop iteration state (per-iteration logs, journal, baseline) — local, not source
+.loop/

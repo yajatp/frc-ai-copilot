@@ -5,10 +5,12 @@ description: Close the agentic loop against a real robot's WPILib/AdvantageKit s
 
 # Sim-in-the-loop (closing the agentic loop on real robot code)
 
-The `simreplay` module already does the **verify** half of the loop (assertions →
-regression suite) and the **run** half generically (`SimRunner` runs any log-producing
-command and finds the `.wpilog`). To close the loop on a *real* robot (e.g. 6369 Echo),
-two small robot-side changes are needed, because AdvantageKit `SIM` mode publishes to
+The `simreplay` module runs the **whole** loop — build, run, verify, diagnose, iterate —
+behind one command (`loop iterate` / the `loop_iterate` MCP tool). See
+[docs/CLOSED-LOOP.md](../../docs/CLOSED-LOOP.md) for the harness side.
+
+This skill covers the *robot* side: what a real team's project (e.g. 6369 Echo) needs before
+the loop can drive it. Two small changes, because AdvantageKit `SIM` mode publishes to
 NetworkTables but does **not** write a `.wpilog`, and the sim has no inputs.
 
 ## 1. Make SIM write a log (one line in Robot.java)
@@ -41,19 +43,42 @@ if (Boolean.getBoolean("copilot.headlessAuto")) {
 
 Run headless (no GUI extension) so it exits on its own after the auto window.
 
-## 3. Run the loop
+## 3. Declare the loop (a `loop.yaml` in the robot repo)
 
-```bash
-# from the copilot repo:
-simreplay/build/install/simreplay/bin/simreplay \
-  run <echo-repo-dir> <echo-repo-dir>/logs <scenario.yaml> \
-  -- ./gradlew simulateJava -Dcopilot.headlessAuto=true
+```yaml
+name: echo-auto
+workDir: .
+build: ["./gradlew", "build"]
+run:   ["./gradlew", "simulateJava", "-Dcopilot.headlessAuto=true"]
+logDir: logs/sim               # where the WPILOGWriter above writes
+scenarioDir: scenarios
+baseline: .loop/baseline.wpilog
+sources: ["src/main/java"]
 ```
 
-`SimRunner` runs the command, finds the newest `.wpilog`, and `Verifier` checks the
-scenario (e.g. `MAX /Autonomous/BallsScored in AUTO > 0`). The agent then edits code and
-re-runs until the scenario passes — the full observe → edit → run → verify loop, with
-plan-review at the front and `DeployGate` before anything reaches a real robot.
+## 4. Run the loop
+
+```bash
+simreplay iterate <echo-repo-dir>/loop.yaml
+```
+
+One turn: rebuild, run headless, verify every scenario, and diagnose what failed. The agent
+edits code and re-runs until it passes — the full edit → build → run → verify → iterate loop,
+with plan-review at the front and `DeployGate` before anything reaches a real robot.
+
+Getting the first scenario is easiest from a run that already works:
+
+```bash
+simreplay generate logs/sim/good.wpilog scenarios/auto.yaml auto_scores /Robot/State AUTO
+```
+
+Read the failure *kind* rather than just FAIL: `SIGNAL_CONSTANT` means the mechanism never
+ran, `SHORTFALL` means it ran and fell short, `SIGNAL_ABSENT` usually means a renamed log key.
+With a baseline adopted (`simreplay baseline`), failures also come with a ranked list of which
+signals diverged from the known-good run.
+
+The older `simreplay run <workDir> <logDir> <scenario> -- <cmd...>` still works for a one-off
+check without a `loop.yaml`, but it has no diagnosis, no baseline diff, and no journal.
 
 > Note on this repo: Echo's local reference clone can be patched as above to demo this
 > locally, but that patch must **not** be pushed to the team's robot repo.

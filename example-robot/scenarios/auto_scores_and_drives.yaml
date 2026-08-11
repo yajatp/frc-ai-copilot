@@ -1,0 +1,34 @@
+---
+name: "auto_scores_and_drives"
+description: "Generated from a known-good run (/private/tmp/claude-501/-Users-yajatparmar-code-6369-frc-ai-copilot/bbb40d16-037d-4572-94ef-74102573823c/scratchpad/logs/good.wpilog)\
+  \ with 10% tolerance, scoped to /Robot/State == AUTO. Review the thresholds before\
+  \ banking this — they encode one run, not a spec."
+assertions:
+- signal: "/Autonomous/BallsScored"
+  aggregation: "LAST"
+  op: "GE"
+  threshold: 4.0
+  phaseSignal: "/Robot/State"
+  phaseEquals: "AUTO"
+  description: "/Autonomous/BallsScored still reaches 4 (was 5)"
+- signal: "/PowerDistribution/Voltage"
+  aggregation: "MIN"
+  op: "GE"
+  threshold: 11.205
+  phaseSignal: "/Robot/State"
+  phaseEquals: "AUTO"
+  description: "battery does not sag below 11.205 V (observed min 12.450 V)"
+- signal: "/Drivetrain/Pose/Y"
+  aggregation: "LAST"
+  op: "GE"
+  threshold: 1.698
+  phaseSignal: "/Robot/State"
+  phaseEquals: "AUTO"
+  description: "/Drivetrain/Pose/Y still reaches 1.698 (was 1.886)"
+- signal: "/Drivetrain/DistanceToTarget"
+  aggregation: "LAST"
+  op: "LE"
+  threshold: 0.469
+  phaseSignal: "/Robot/State"
+  phaseEquals: "AUTO"
+  description: "/Drivetrain/DistanceToTarget settles to within 0.469 (was 0.419)"

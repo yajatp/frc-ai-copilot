@@ -40,6 +40,13 @@ tasks.named('run') {
     systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
 }
 
+// Tests write real .wpilog files with DataLogWriter and read them back, so the loop is exercised
+// against WPILib's actual binary format rather than a hand-rolled stand-in.
+tasks.withType(Test).configureEach {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
+
 distributions {
     main {
         contents {

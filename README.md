@@ -29,10 +29,10 @@ two modes:
 | 3 · `analysis` | ✅ built + tested | 15 composable primitives with epistemic guardrails: power/brownout, CAN, battery, loop-timing, swerve/PID, vision, cycle-time, anomaly/peaks/correlate/compare — all reachable from both the MCP server and the `analysis` CLI |
 | 4 · `write-layer` | ✅ built + tested | PathPlanner `.path` + `.auto` editing as reviewable diffs (dry-run by default) + `DeployGate` |
 | 5 · `live-nt` | ✅ built + tested | NT4 live telemetry (read) + safety-scoped write boundary (default-deny whitelist, hard denylist, doubles-only, no CLI write) |
-| 6 · `simreplay` | ✅ built + tested | Agentic closed loop observe→verify: phase-aware assertions + regression suite + sim/replay runner |
+| 6 · `simreplay` | ✅ built + tested | **Full agentic closed loop** edit→build→run→verify→diagnose→iterate against headless sim: phase-aware assertions, failure diagnosis + baseline signal divergence, iteration journal, and scenario generation from known-good runs. See [docs/CLOSED-LOOP.md](docs/CLOSED-LOOP.md) |
 | — · `modes` | ✅ built + tested | Mode A between-match orchestrator (flags + persists metrics to the trend store) |
 | — · `smallmodel` | ✅ built + tested | "Big-AI-trains-small-AI": tiny logistic model over hand-labeled log examples |
-| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **34 tools**; `get_guide` discovery |
+| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **38 tools**; `get_guide` discovery |
 | — · `dashboard` | ✅ Phase 1 & 2 complete | Local web UI (loopback, read-only) — live NT telemetry, health tiles, Signals, Pit, Match, Paths, Trends, and Profile views. See [dashboard/README.md](dashboard/README.md) |
 | — · `vscode-extension` | ✅ compiles | VS Code extension that builds/registers the MCP server |
 

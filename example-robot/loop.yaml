@@ -1,0 +1,32 @@
+# How the closed loop drives this robot project.
+#
+# With this file present, `loop iterate` needs no arguments: it rebuilds the robot code, runs it
+# headless, verifies the log against every scenario in `scenarios/`, and diagnoses what failed.
+# Paths are relative to this file; the commands run in `workDir`.
+name: example-robot-auto
+description: >
+  Headless autonomous run of the example robot (maple-sim physics). The loop rebuilds from source,
+  so editing a subsystem and re-running is a complete edit -> build -> run -> verify turn.
+
+# Commands run from the repository root, where ./gradlew lives.
+workDir: ..
+
+build: ["./gradlew", ":example-robot:installDist", "-q"]
+
+# {log} is replaced with a fresh per-iteration output path, so each run's log is unambiguous
+# rather than being guessed at by modification time.
+run: ["example-robot/build/install/example-robot/bin/example-robot", "{log}"]
+
+scenarioDir: scenarios
+logDir: .loop/logs
+baseline: .loop/baseline.wpilog
+
+# Fingerprinted so an iteration can report which files changed since the previous one.
+sources: ["src/main/java"]
+
+# Keep every Gradle cache, daemon, and wrapper download inside the checkout (see docs/SETUP.md);
+# without this the spawned build would fall back to ~/.gradle.
+env:
+  GRADLE_USER_HOME: "{workDir}/.gradle-home"
+
+timeoutSeconds: 900
