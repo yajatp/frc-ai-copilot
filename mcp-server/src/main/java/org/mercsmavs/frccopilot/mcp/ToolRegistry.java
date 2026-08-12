@@ -133,6 +133,43 @@ final class ToolRegistry {
                         new Schemas.Prop("out", "string", "Output path (omit for dry-run)", false)),
                 ToolRegistry::pathSetSpeed));
 
+        add(tools, new SimpleTool("pathplanner_move_marker", "Retime an event marker — the 'timing'"
+                + " half of a between-match autonomous tweak (e.g. spin the flywheels up earlier)."
+                + " Positions are waypoint-relative, NOT seconds: the integer part is a waypoint"
+                + " index and the fraction is progress along the next segment, so a path with N"
+                + " waypoints spans 0..N-1. Call pathplanner_show first to see the markers and their"
+                + " current positions. A ranged marker keeps its length when moved, unless you pass"
+                + " endPos. Reviewable diff; writes only if 'out' is given.",
+                Schemas.object(
+                        new Schemas.Prop("path", "string", "Path to a .path file", true),
+                        new Schemas.Prop("index", "integer", "Event-marker index (0-based)", true),
+                        new Schemas.Prop("delta", "number",
+                                "Retime by this much, relative to the marker's current position"
+                                        + " (negative = earlier). Use instead of 'pos'.", false),
+                        new Schemas.Prop("pos", "number", "New absolute waypoint-relative position", false),
+                        new Schemas.Prop("endPos", "number",
+                                "New end position for a ranged marker; null converts it to a point"
+                                        + " marker. Omit to preserve the existing length.", false),
+                        new Schemas.Prop("out", "string", "Output path (omit for dry-run)", false)),
+                ToolRegistry::pathMoveMarker));
+
+        add(tools, new SimpleTool("pathplanner_set_zone", "Move a constraint zone, or change a"
+                + " constraint inside it (e.g. maxVelocity, to slow the robot through one tight"
+                + " passage without slowing the whole path — which is what pathplanner_set_speed"
+                + " does). Bounds are waypoint-relative, not seconds. Reviewable diff; writes only"
+                + " if 'out' is given.",
+                Schemas.object(
+                        new Schemas.Prop("path", "string", "Path to a .path file", true),
+                        new Schemas.Prop("index", "integer", "Constraint-zone index (0-based)", true),
+                        new Schemas.Prop("minPos", "number", "New zone start (with maxPos)", false),
+                        new Schemas.Prop("maxPos", "number", "New zone end (with minPos)", false),
+                        new Schemas.Prop("key", "string",
+                                "Constraint to change inside the zone, e.g. maxVelocity,"
+                                        + " maxAcceleration, maxAngularVelocity (with value)", false),
+                        new Schemas.Prop("value", "number", "New value for 'key'", false),
+                        new Schemas.Prop("out", "string", "Output path (omit for dry-run)", false)),
+                ToolRegistry::pathSetZone));
+
         add(tools, new SimpleTool("loop_check", "Verify a scenario's success criteria against a"
                 + " log (the closed-loop 'verify' step). Returns per-check PASS/FAIL.",
                 Schemas.object(
@@ -481,8 +518,66 @@ final class ToolRegistry {
             sb.append(String.format("  [%d] (%.3f, %.3f)%n", i, anchor[0], anchor[1]));
         }
         sb.append("maxVel=").append(p.globalConstraint("maxVelocity"))
-                .append(" maxAccel=").append(p.globalConstraint("maxAcceleration"));
+                .append(" maxAccel=").append(p.globalConstraint("maxAcceleration")).append('\n');
+
+        // Positions are waypoint-relative, not seconds — say so, since an agent will otherwise
+        // reasonably assume a marker at 2.64 means 2.64 seconds.
+        sb.append("event markers (positions are waypoint-relative, range 0..")
+                .append(p.waypointCount() - 1).append("):\n");
+        for (int i = 0; i < p.eventMarkerCount(); i++) {
+            PathFile.EventMarker m = p.eventMarker(i);
+            sb.append(String.format("  [%d] %s at %.4f%s%n", i, m.name(), m.pos(),
+                    m.ranged() ? String.format(" .. %.4f", m.endPos()) : ""));
+        }
+        sb.append("constraint zones:\n");
+        for (int i = 0; i < p.constraintZoneCount(); i++) {
+            PathFile.ConstraintZone z = p.constraintZone(i);
+            sb.append(String.format("  [%d] %s %.4f..%.4f maxVel=%s maxAccel=%s%n",
+                    i, z.name(), z.minPos(), z.maxPos(),
+                    p.zoneConstraint(i, "maxVelocity"), p.zoneConstraint(i, "maxAcceleration")));
+        }
         return sb.toString();
+    }
+
+    private static String pathMoveMarker(JsonNode a) throws Exception {
+        PathFile before = PathFile.load(Path.of(str(a, "path")));
+        PathFile after = before.copy();
+        int index = a.get("index").asInt();
+        if (a.hasNonNull("delta")) {
+            after.shiftEventMarker(index, a.get("delta").asDouble());
+        } else if (a.hasNonNull("pos")) {
+            // An explicit endPos changes the interval's length; without one, a ranged marker is
+            // translated with its length preserved.
+            if (a.has("endPos")) {
+                Double end = a.hasNonNull("endPos") ? a.get("endPos").asDouble() : null;
+                after.setEventMarkerRange(index, a.get("pos").asDouble(), end);
+            } else {
+                after.moveEventMarker(index, a.get("pos").asDouble());
+            }
+        } else {
+            return "Pass either 'delta' (retime relative to where the marker is now) or 'pos'.";
+        }
+        return applyOrDryRun(before, after, a.hasNonNull("out") ? a.get("out").asText() : null);
+    }
+
+    private static String pathSetZone(JsonNode a) throws Exception {
+        PathFile before = PathFile.load(Path.of(str(a, "path")));
+        PathFile after = before.copy();
+        int index = a.get("index").asInt();
+        boolean did = false;
+        if (a.hasNonNull("minPos") && a.hasNonNull("maxPos")) {
+            after.setConstraintZoneRange(index, a.get("minPos").asDouble(), a.get("maxPos").asDouble());
+            did = true;
+        }
+        if (a.hasNonNull("key") && a.hasNonNull("value")) {
+            after.setZoneConstraint(index, a.get("key").asText(), a.get("value").asDouble());
+            did = true;
+        }
+        if (!did) {
+            return "Pass 'minPos'+'maxPos' to move the zone, and/or 'key'+'value' to change a"
+                    + " constraint inside it (e.g. key=maxVelocity).";
+        }
+        return applyOrDryRun(before, after, a.hasNonNull("out") ? a.get("out").asText() : null);
     }
 
     private static String pathFudge(JsonNode a) throws Exception {
