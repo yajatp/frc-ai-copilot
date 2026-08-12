@@ -1,0 +1,27 @@
+name: replay_auto_scores
+description: >-
+  Replay-scoped version of auto_scores_balls. Asserts that re-executing the scoring code against a
+  recorded match would have scored the 5-ball target during AUTO. This is the Module 6 question
+  applied to the Team 254 "broken auto" case: the recorded match scored 0, so the check fails on a
+  replay of the recorded code and passes once the shoot mapping is fixed — without resimulating.
+
+  The drive scenario (auto_drives_to_target) is deliberately NOT in this directory. Replay is only
+  valid for code downstream of the signals in the log: scoring is a function of the recorded tick
+  timeline, but the chassis pose depends on actuation feeding back through the physics, so a replay
+  pass cannot move it and asserting on it here would test the recording, not the change. Drive
+  changes belong to loop.yaml's sim path.
+assertions:
+- signal: /Autonomous/BallsScored
+  aggregation: MAX
+  op: GT
+  threshold: 0.0
+  phaseSignal: /Robot/State
+  phaseEquals: AUTO
+  description: replayed auto scores non-zero
+- signal: /Autonomous/BallsScored
+  aggregation: MAX
+  op: GE
+  threshold: 5.0
+  phaseSignal: /Robot/State
+  phaseEquals: AUTO
+  description: replayed auto meets the 5-ball target

@@ -1,0 +1,44 @@
+# How the closed loop replays a recorded log against the current robot code.
+#
+# This is the replay counterpart to `loop.yaml`. Same cycle — edit -> build -> run -> verify ->
+# diagnose -> iterate — but the "run" step re-executes the code against a log that already exists
+# instead of simulating a fresh match. That is the Module 6 question: given one match log plus a
+# proposed change, what would have happened differently?
+#
+#   simreplay iterate example-robot/replay.yaml
+#   simreplay iterate example-robot/replay.yaml --input-log path/to/another-match.wpilog
+#
+# `--input-log` is how one config is pointed at each of a season's match logs in turn, rather than
+# only the one named below.
+name: example-robot-replay
+description: >
+  Replays a recorded match log through the current scoring code and verifies what would have
+  happened. No physics engine runs, so a turn is a pass over a file rather than a resimulation.
+
+workDir: ..
+
+build: ["./gradlew", ":example-robot:installDist", "-q"]
+
+# {inputLog} is the log being replayed; {log} is the fresh log the pass produces. A replay config
+# normally has both — read one, write the other.
+run: ["example-robot/build/install/example-robot/bin/example-robot-replay",
+      "{inputLog}", "{log}"]
+
+# The recorded match this config replays by default. Regenerate it with:
+#   example-robot/build/install/example-robot/bin/example-robot .loop/recorded-match.wpilog broken
+inputLog: .loop/recorded-match.wpilog
+
+# A replay-specific suite, not `scenarios/`: replay can only validly check code downstream of the
+# signals in the log, so the drive scenario is deliberately excluded. See the scenario's own comment.
+scenarioDir: replay-scenarios
+logDir: .loop/replay-logs
+
+# Fingerprinted so an iteration can report which files changed since the previous one.
+sources: ["src/main/java"]
+
+# Keep every Gradle cache, daemon, and wrapper download inside the checkout (see docs/SETUP.md);
+# without this the spawned build would fall back to ~/.gradle.
+env:
+  GRADLE_USER_HOME: "{workDir}/.gradle-home"
+
+timeoutSeconds: 900

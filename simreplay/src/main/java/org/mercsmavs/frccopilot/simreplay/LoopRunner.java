@@ -80,7 +80,9 @@ public final class LoopRunner {
         BUILD_FAILED,
         RUN_FAILED,
         NO_LOG,
-        NO_SCENARIOS
+        NO_SCENARIOS,
+        /** A replay config's input log is missing — a setup problem, not a robot-code problem. */
+        NO_INPUT_LOG
     }
 
     /**
@@ -90,7 +92,19 @@ public final class LoopRunner {
      * @param scenarioOverride a single scenario file to check, or {@code null} for the whole suite
      */
     public static IterationReport iterate(LoopConfig config, Path scenarioOverride) throws Exception {
-        Path sessionFile = config.loopStateDir().resolve("session.json");
+        return iterate(config, scenarioOverride, null);
+    }
+
+    /**
+     * Run one full turn, optionally replaying a specific input log.
+     *
+     * @param inputLogOverride the log to replay this turn, substituted for {@code {inputLog}} in the
+     *     run command; {@code null} uses the config's own {@code inputLog}. Overriding it is how one
+     *     replay config is pointed at each of a season's match logs in turn.
+     */
+    public static IterationReport iterate(
+            LoopConfig config, Path scenarioOverride, Path inputLogOverride) throws Exception {
+        Path sessionFile = config.sessionFile();
         LoopSession session = LoopSession.load(sessionFile);
         session.project = config.name;
         Map<String, String> fingerprint =
@@ -103,6 +117,20 @@ public final class LoopRunner {
                     Optional.empty(), List.of(), Diagnosis.empty(), Optional.empty(), scenarios,
                     "No scenarios found — nothing to verify. Generate one from a known-good run"
                             + " (`loop generate`) or write one by hand.",
+                    "");
+        }
+
+        // A replay turn must fail loudly if the log it is meant to replay is not there, and before
+        // spending a build on it. Otherwise the robot process fails to open the log and reports as a
+        // generic RUN_FAILED, which points the agent at its own code instead of at the missing input.
+        Path inputLog = inputLogOverride != null ? inputLogOverride : config.inputLogPath();
+        if (config.consumesInputLog() && (inputLog == null || !Files.isRegularFile(inputLog))) {
+            return finish(session, sessionFile, fingerprint, number, Outcome.NO_INPUT_LOG, 0,
+                    Optional.empty(), List.of(), Diagnosis.empty(), Optional.empty(), scenarios,
+                    "This is a replay config (its run command uses " + LoopConfig.INPUT_LOG_PLACEHOLDER
+                            + ") but the log to replay is missing: "
+                            + (inputLog == null ? "none given" : inputLog.toString())
+                            + ". Nothing was built or run.",
                     "");
         }
 
@@ -129,7 +157,7 @@ public final class LoopRunner {
         if (config.producesLogPath()) {
             Files.deleteIfExists(expectedLog); // a stale file would be mistaken for this run's output
         }
-        List<String> command = config.runCommand(expectedLog);
+        List<String> command = config.runCommand(expectedLog, inputLog);
         SimRunner.RunResult run = SimRunner.run(
                 config.workDirPath(), command, logDir, config.timeoutSeconds, config.resolvedEnv());
 

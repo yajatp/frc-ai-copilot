@@ -193,7 +193,13 @@ final class ToolRegistry {
                         new Schemas.Prop("config", "string",
                                 "Path to loop.yaml or a directory inside the project (default: cwd)", false),
                         new Schemas.Prop("scenario", "string",
-                                "Check a single scenario .yaml instead of the whole suite", false)),
+                                "Check a single scenario .yaml instead of the whole suite", false),
+                        new Schemas.Prop("inputLog", "string",
+                                "For a REPLAY config (its run command uses {inputLog}): the recorded"
+                                        + " .wpilog to replay this turn, instead of the one the config"
+                                        + " names. This answers 'what would my change have done on"
+                                        + " THIS match' without resimulating. Ignored by sim configs.",
+                                false)),
                 ToolRegistry::loopIterate));
 
         add(tools, new SimpleTool("loop_history", "The iteration journal for a project: every"
@@ -926,14 +932,17 @@ final class ToolRegistry {
     private static String loopIterate(JsonNode a) throws Exception {
         LoopConfig config = LoopConfig.load(LoopConfig.discover(Path.of(optional(a, "config", ""))));
         String scenario = optional(a, "scenario", null);
-        LoopRunner.IterationReport report =
-                LoopRunner.iterate(config, scenario == null ? null : Path.of(scenario));
+        String inputLog = optional(a, "inputLog", null);
+        LoopRunner.IterationReport report = LoopRunner.iterate(
+                config,
+                scenario == null ? null : Path.of(scenario),
+                inputLog == null ? null : Path.of(inputLog));
         return report.render();
     }
 
     private static String loopHistory(JsonNode a) throws Exception {
         LoopConfig config = LoopConfig.load(LoopConfig.discover(Path.of(optional(a, "config", ""))));
-        return LoopSession.load(config.loopStateDir().resolve("session.json")).render();
+        return LoopSession.load(config.sessionFile()).render();
     }
 
     private static String loopGenerate(JsonNode a) throws Exception {

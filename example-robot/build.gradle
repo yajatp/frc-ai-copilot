@@ -84,3 +84,29 @@ tasks.named('startScripts') {
     }
 }
 
+// A second launcher for the replay entry point, so `replay.yaml` can invoke it directly the way
+// `loop.yaml` invokes the sim. Same natives rewrite — a replay pass still needs the HAL.
+def replayScripts = tasks.register('replayStartScripts', CreateStartScripts) {
+    dependsOn extractNatives
+    mainClass = 'org.mercsmavs.frccopilot.examplerobot.ReplaySim'
+    applicationName = 'example-robot-replay'
+    outputDir = layout.buildDirectory.dir('scripts-replay').get().asFile
+    classpath = tasks.named('startScripts').get().classpath
+    doLast {
+        unixScript.text = unixScript.text.replace(
+                'exec "$JAVACMD" "$@"',
+                'exec "$JAVACMD" "-Djava.library.path=$APP_HOME/natives" "$@"')
+        windowsScript.text = windowsScript.text.replace(
+                '"%JAVA_EXE%" %DEFAULT_JVM_OPTS%',
+                '"%JAVA_EXE%" "-Djava.library.path=%APP_HOME%\\natives" %DEFAULT_JVM_OPTS%')
+    }
+}
+
+distributions {
+    main {
+        contents {
+            from(replayScripts) { into 'bin' }
+        }
+    }
+}
+

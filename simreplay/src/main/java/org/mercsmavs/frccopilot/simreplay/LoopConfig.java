@@ -29,6 +29,14 @@ public final class LoopConfig {
     /** Placeholder in a run command, substituted with a fresh log path for each iteration. */
     public static final String LOG_PLACEHOLDER = "{log}";
 
+    /**
+     * Placeholder substituted with the log being <em>replayed</em> — the input side of a replay pass
+     * (an AdvantageKit REPLAY task's log source, or any command that re-executes robot code against
+     * recorded inputs). {@link #LOG_PLACEHOLDER} remains the output the pass produces, so a replay
+     * config normally contains both: read {@code {inputLog}}, write {@code {log}}.
+     */
+    public static final String INPUT_LOG_PLACEHOLDER = "{inputLog}";
+
     private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
 
     /** Conventional file name, looked up by {@link #discover(Path)}. */
@@ -48,6 +56,12 @@ public final class LoopConfig {
     public String scenarioDir;
     /** Optional known-good log that failures are diffed against. */
     public String baseline;
+    /**
+     * The log to replay, substituted for {@link #INPUT_LOG_PLACEHOLDER} in {@code run}. This is the
+     * default; {@code loop iterate --input-log} overrides it per turn, which is how one config
+     * replays a whole season of match logs rather than the one it names.
+     */
+    public String inputLog;
     /** Source trees fingerprinted so an iteration can report which files changed. */
     public List<String> sources;
     /** Per-step timeout. */
@@ -97,6 +111,13 @@ public final class LoopConfig {
         if (scenarioDir == null && baseline == null) {
             throw new IOException(file + ": set 'scenarioDir' (scenarios to verify) — nothing to check against");
         }
+        if (consumesInputLog() && inputLog == null) {
+            // Left unchecked, the literal "{inputLog}" would be handed to the robot process, which
+            // would fail to open it and look like a broken replay rather than a misconfiguration.
+            throw new IOException(
+                    file + ": 'run' uses " + INPUT_LOG_PLACEHOLDER + " but no 'inputLog' is set."
+                            + " Name the log to replay, or pass one per turn with --input-log.");
+        }
         if (!producesLogPath() && logDir == null) {
             throw new IOException(
                     file + ": set 'logDir', or put " + LOG_PLACEHOLDER + " in 'run' — otherwise the"
@@ -109,16 +130,39 @@ public final class LoopConfig {
         return run.stream().anyMatch(a -> a.contains(LOG_PLACEHOLDER));
     }
 
+    /** True when this is a replay config — the run command wants an input log to re-execute against. */
+    public boolean consumesInputLog() {
+        return run.stream().anyMatch(a -> a.contains(INPUT_LOG_PLACEHOLDER));
+    }
+
     /** Build the argv for one iteration, substituting {@code {log}} with the given output path. */
     public List<String> runCommand(Path logFile) {
+        return runCommand(logFile, null);
+    }
+
+    /**
+     * Build the argv for one iteration. {@code {log}} becomes the output path; {@code {inputLog}}
+     * becomes {@code inputLogOverride} if given, else the configured {@link #inputLog}.
+     */
+    public List<String> runCommand(Path logFile, Path inputLogOverride) {
+        Path input = inputLogOverride != null ? inputLogOverride : inputLogPath();
         List<String> argv = new ArrayList<>(run.size());
         for (String arg : run) {
-            argv.add(arg.replace(LOG_PLACEHOLDER, logFile.toAbsolutePath().toString()));
+            String substituted = arg.replace(LOG_PLACEHOLDER, logFile.toAbsolutePath().toString());
+            if (input != null) {
+                substituted =
+                        substituted.replace(INPUT_LOG_PLACEHOLDER, input.toAbsolutePath().toString());
+            }
+            argv.add(substituted);
         }
         if (runArgs != null) {
             argv.addAll(runArgs);
         }
         return argv;
+    }
+
+    public Path inputLogPath() {
+        return inputLog == null ? null : resolve(inputLog);
     }
 
     public Path workDirPath() {
@@ -140,6 +184,20 @@ public final class LoopConfig {
     /** Where the iteration journal and generated logs live. */
     public Path loopStateDir() {
         return baseDir.resolve(".loop");
+    }
+
+    /**
+     * The iteration journal for this config.
+     *
+     * <p>Scoped by config name rather than one {@code session.json} per directory, because a project
+     * can declare more than one loop over the same tree — a sim config and a replay config, say — and
+     * a shared journal would interleave them. The deltas it reports ("how every checked value moved
+     * since the last iteration") are only meaningful between comparable runs, so a replay turn
+     * following a sim turn would produce a diff of two different things and present it as progress.
+     */
+    public Path sessionFile() {
+        String slug = name == null ? null : name.replaceAll("[^A-Za-z0-9._-]+", "-");
+        return loopStateDir().resolve(slug == null || slug.isBlank() ? "session.json" : "session-" + slug + ".json");
     }
 
     public List<Path> sourcePaths() {

@@ -70,7 +70,8 @@ class LoopRunnerTest {
         assertTrue(report.log().isPresent(), "the produced log must be located");
         assertEquals(1, report.number());
 
-        LoopSession session = LoopSession.load(dir.resolve(".loop/session.json"));
+        // The journal is scoped per config name, so ask the config where it is rather than guessing.
+        LoopSession session = LoopSession.load(LoopConfig.load(config).sessionFile());
         assertEquals(1, session.iterations.size());
         assertTrue(session.iterations.get(0).passed);
         assertFalse(session.fingerprint.isEmpty(), "sources should have been fingerprinted");

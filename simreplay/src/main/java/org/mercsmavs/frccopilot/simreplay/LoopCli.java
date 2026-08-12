@@ -61,12 +61,13 @@ public final class LoopCli {
         }
     }
 
-    /** iterate [loop.yaml] [--scenario <file>] */
+    /** iterate [loop.yaml] [--scenario <file>] [--input-log <file.wpilog>] */
     private static void iterate(String[] args) throws Exception {
         Path config = LoopConfig.discover(configArg(args));
         Path scenario = flag(args, "--scenario");
+        Path inputLog = flag(args, "--input-log");
         LoopConfig loop = LoopConfig.load(config);
-        LoopRunner.IterationReport report = LoopRunner.iterate(loop, scenario);
+        LoopRunner.IterationReport report = LoopRunner.iterate(loop, scenario, inputLog);
         System.out.print(report.render());
         System.exit(report.passed() ? 0 : 1);
     }
@@ -74,14 +75,14 @@ public final class LoopCli {
     private static void history(String[] args) throws Exception {
         Path config = LoopConfig.discover(configArg(args));
         LoopConfig loop = LoopConfig.load(config);
-        System.out.print(LoopSession.load(loop.loopStateDir().resolve("session.json")).render());
+        System.out.print(LoopSession.load(loop.sessionFile()).render());
     }
 
     /** Adopt the most recent passing run's log as the baseline future failures are diffed against. */
     private static void baseline(String[] args) throws Exception {
         Path config = LoopConfig.discover(configArg(args));
         LoopConfig loop = LoopConfig.load(config);
-        LoopSession session = LoopSession.load(loop.loopStateDir().resolve("session.json"));
+        LoopSession session = LoopSession.load(loop.sessionFile());
         LoopSession.Iteration passing = null;
         for (LoopSession.Iteration it : session.iterations) {
             if (it.passed && it.log != null) {
@@ -204,7 +205,10 @@ public final class LoopCli {
                 """
                 frc-ai-copilot closed-loop harness
                 usage:
-                  iterate  [loop.yaml] [--scenario <f.yaml>]   one turn: build, run, verify, diagnose
+                  iterate  [loop.yaml] [--scenario <f.yaml>] [--input-log <in.wpilog>]
+                                                               one turn: build, run, verify, diagnose
+                                                               --input-log replays that log instead of
+                                                               the config's own (replay configs only)
                   history  [loop.yaml]                         iteration journal for this project
                   baseline [loop.yaml]                         adopt latest passing log as baseline
                   generate <good.wpilog> <out.yaml> [name] [phaseSignal phaseValue]
