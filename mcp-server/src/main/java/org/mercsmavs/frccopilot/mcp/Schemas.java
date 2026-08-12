@@ -10,7 +10,15 @@ final class Schemas {
 
     private static final JsonNodeFactory F = JsonNodeFactory.instance;
 
-    record Prop(String name, String type, String description, boolean required) {}
+    /**
+     * @param itemType element type when {@code type} is {@code "array"} — clients that validate
+     *     strictly reject an array schema with no {@code items}. Null for scalar props.
+     */
+    record Prop(String name, String type, String description, boolean required, String itemType) {
+        Prop(String name, String type, String description, boolean required) {
+            this(name, type, description, required, null);
+        }
+    }
 
     static ObjectNode object(Prop... props) {
         ObjectNode schema = F.objectNode();
@@ -21,6 +29,9 @@ final class Schemas {
             ObjectNode prop = properties.putObject(p.name());
             prop.put("type", p.type());
             prop.put("description", p.description());
+            if (p.itemType() != null) {
+                prop.putObject("items").put("type", p.itemType());
+            }
             if (p.required()) {
                 required.add(p.name());
             }

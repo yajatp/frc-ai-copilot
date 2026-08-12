@@ -31,7 +31,9 @@ import org.mercsmavs.frccopilot.knowledge.SearchHit;
 import org.mercsmavs.frccopilot.ingest.store.LogSummary;
 import org.mercsmavs.frccopilot.ingest.store.TrendStore;
 import org.mercsmavs.frccopilot.livent.NtClient;
+import org.mercsmavs.frccopilot.modes.LogWatcher;
 import org.mercsmavs.frccopilot.modes.ModeA;
+import org.mercsmavs.frccopilot.modes.ModeAPass;
 import org.mercsmavs.frccopilot.profile.ProfileMapper;
 import org.mercsmavs.frccopilot.profile.RobotProfile;
 import org.mercsmavs.frccopilot.simreplay.LogDiff;
@@ -193,6 +195,17 @@ final class ToolRegistry {
                         new Schemas.Prop("db", "string", "Path to the SQLite trend store", true),
                         new Schemas.Prop("file", "string", "Path to the match .wpilog", true)),
                 ToolRegistry::modeA));
+
+        add(tools, new SimpleTool("mode_a_scan", "Sweep one or more directories (USB mount point,"
+                + " Driver Station log folder) for .wpilog files not yet in the trend store, and run"
+                + " the Mode A pass on each. Use this to catch up after matches happened without the"
+                + " watcher running; for continuous ingest between matches, run the daemon"
+                + " (`modes watch <db> <dir>...`) instead, which cannot be a tool because it blocks.",
+                Schemas.object(
+                        new Schemas.Prop("db", "string", "Path to the SQLite trend store", true),
+                        new Schemas.Prop("dirs", "array", "Directories to scan (recursively, 4 levels)",
+                                true, "string")),
+                ToolRegistry::modeAScan));
 
         add(tools, new SimpleTool("swerve_analysis", "Detect underdamped/oscillating closed-loop"
                 + " behavior from a swerve module signal (hedged PID guidance).",
@@ -493,16 +506,48 @@ final class ToolRegistry {
     private static final List<String> CYCLE_CANDIDATES = SignalResolver.CYCLE_COUNTER;
 
     private static String modeA(JsonNode a) throws Exception {
-        WpilogReader r = new WpilogReader(str(a, "file"));
-        Map<Integer, LogEntry> index = r.index();
         try (TrendStore store = new TrendStore(str(a, "db"))) {
-            long logId = store.ingest(LogSummary.from(r, index), index.values());
-            Series voltage = seriesFor(r, index, SignalResolver.VOLTAGE);
-            Series current = seriesFor(r, index, SignalResolver.TOTAL_CURRENT);
-            Series can = seriesFor(r, index, SignalResolver.CAN_ERRORS);
-            Series loop = seriesFor(r, index, LOOP_CANDIDATES);
-            ModeA.Result res = ModeA.analyze(store, logId, voltage, current, can, loop);
-            return res.report() + "Overall: " + res.worst() + " (log #" + logId + ", metrics persisted)";
+            ModeAPass.Outcome outcome = ModeAPass.run(store, str(a, "file"));
+            ModeA.Result res = outcome.result();
+            return res.report()
+                    + "Overall: " + res.worst() + " (log #" + outcome.logId() + ", metrics persisted)";
+        }
+    }
+
+    /**
+     * One-shot catch-up scan. The watcher daemon itself is deliberately not an MCP tool — a tool
+     * call has to return, so a blocking daemon would either hang the agent or return immediately
+     * having done nothing. This is the request/response-shaped half of it: sweep the directories
+     * once, analyze whatever is new, and report.
+     */
+    private static String modeAScan(JsonNode a) throws Exception {
+        List<Path> roots = new java.util.ArrayList<>();
+        JsonNode dirs = a.get("dirs");
+        if (dirs != null && dirs.isArray()) {
+            dirs.forEach(d -> roots.add(Path.of(d.asText())));
+        } else if (dirs != null && dirs.isTextual()) {
+            roots.add(Path.of(dirs.asText()));
+        }
+        if (roots.isEmpty()) {
+            return "Pass 'dirs' with at least one directory to scan.";
+        }
+        try (TrendStore store = new TrendStore(str(a, "db"))) {
+            List<LogWatcher.Event> events =
+                    new LogWatcher(store, roots, 1, e -> {}).poll();
+            if (events.isEmpty()) {
+                return "Scanned " + roots + " — no new .wpilog files. Everything present was already"
+                        + " ingested (dedupe is by path, from the trend store).";
+            }
+            StringBuilder sb = new StringBuilder("Analyzed " + events.size() + " new log(s):\n\n");
+            for (LogWatcher.Event e : events) {
+                sb.append(LogWatcher.describe(e)).append('\n');
+                if (e instanceof LogWatcher.Event.Analyzed an) {
+                    sb.append(an.outcome().result().report()).append('\n');
+                }
+            }
+            sb.append("For continuous between-match ingest, run the daemon instead:"
+                    + " `modes watch <db> <dir>...`.");
+            return sb.toString();
         }
     }
 

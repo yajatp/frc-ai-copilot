@@ -14,3 +14,29 @@ dependencies {
 application {
     mainClass = 'org.mercsmavs.frccopilot.modes.ModeCli'
 }
+
+// Natives only needed by tests, which write real .wpilog files with DataLogWriter (via
+// SampleLogGenerator) so the watcher is exercised against WPILib's actual binary format rather
+// than a hand-rolled stand-in. Same pattern as :simreplay. Reading/analysis is pure Java.
+configurations {
+    natives
+}
+
+dependencies {
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+}
+
+def nativesDir = layout.buildDirectory.dir('natives')
+
+def extractNatives = tasks.register('extractNatives', Copy) {
+    from { configurations.natives.collect { zipTree(it) } }
+    include '**/*.dylib'
+    eachFile { it.path = it.name }
+    includeEmptyDirs = false
+    into nativesDir
+}
+
+tasks.withType(Test).configureEach {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
+}
