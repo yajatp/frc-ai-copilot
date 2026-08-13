@@ -1,7 +1,41 @@
-// "Big AI trains a small AI" — a tiny trainable model over labeled log examples (254's technique).
-apply plugin: 'java'
+// "Big AI trains a small AI" — a tiny trainable model over labeled log examples.
+apply plugin: 'application'
 
 dependencies {
+    // Labeled examples come out of a .wpilog, so the trainer needs the reader.
+    implementation project(':core-ingest')
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testImplementation "edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}" // DataLogWriter for test logs
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'org.mercsmavs.frccopilot.smallmodel.SmallModelCli'
+}
+
+// Natives only needed by tests, which write real .wpilog files with DataLogWriter to train against.
+// Same pattern as :simreplay and :modes; reading and training are pure Java.
+configurations {
+    natives
+}
+
+dependencies {
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+}
+
+def nativesDir = layout.buildDirectory.dir('natives')
+
+def extractNatives = tasks.register('extractNatives', Copy) {
+    from { configurations.natives.collect { zipTree(it) } }
+    include '**/*.dylib'
+    eachFile { it.path = it.name }
+    includeEmptyDirs = false
+    into nativesDir
+}
+
+tasks.withType(Test).configureEach {
+    dependsOn extractNatives
+    systemProperty 'java.library.path', nativesDir.get().asFile.absolutePath
 }

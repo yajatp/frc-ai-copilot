@@ -1,11 +1,11 @@
 ---
 name: frc-copilot-usage
-description: How to use the frc-ai-copilot MCP server's 38 tools (get_guide, search_docs/search_manual/knowledge_status, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, signal_stats/data_quality/find_peaks/rate_of_change/correlate/compare_signals/analyze_cycles, pathplanner_show/fudge/set_speed, auto_show/auto_swap_path, loop_check/loop_suite/loop_iterate/loop_history/loop_generate/loop_diff, mode_a, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
+description: How to use the frc-ai-copilot MCP server's 43 tools (get_guide, search_docs/search_manual/knowledge_status, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, signal_stats/data_quality/find_peaks/rate_of_change/correlate/compare_signals/analyze_cycles, pathplanner_show/fudge/set_speed/move_marker/set_zone, auto_show/auto_swap_path, loop_check/loop_suite/loop_iterate/loop_history/loop_generate/loop_diff, mode_a/mode_a_scan, smallmodel_train/smallmodel_score, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
 ---
 
 # Using the frc-ai-copilot MCP tools
 
-The `frc-copilot` MCP server exposes 38 tools over stdio (see `docs/SETUP.md` for registration).
+The `frc-copilot` MCP server exposes 43 tools over stdio (see `docs/SETUP.md` for registration).
 This skill is about *how* to sequence them, not what each one does internally — see the tool
 descriptions themselves (`tools/list`) for exact schemas.
 
@@ -37,6 +37,8 @@ descriptions themselves (`tools/list`) for exact schemas.
 | `pathplanner_show` | `path` | Summarize a `.path` file's waypoints/constraints. |
 | `pathplanner_fudge` | `path`, `index`, `dx`, `dy`, `out?` | Propose shifting one waypoint by (dx, dy) meters. Dry-run unless `out` given. |
 | `pathplanner_set_speed` | `path`, `maxVelocity`, `maxAcceleration`, `out?` | Propose new global speed/accel constraints. Dry-run unless `out` given. |
+| `pathplanner_move_marker` | `path`, `index`, `delta?`/`pos?`, `endPos?`, `out?` | Retime an event marker (the *timing* tweak). Positions are waypoint-relative, not seconds. Dry-run unless `out` given. |
+| `pathplanner_set_zone` | `path`, `index`, `minPos?`+`maxPos?`, `key?`+`value?`, `out?` | Move a constraint zone or change a constraint inside it — slow one tight passage without slowing the whole path. |
 | `auto_show` | `auto` | Summarize a `.auto` file's path references. |
 | `auto_swap_path` | `auto`, `oldName`, `newName`, `out?` | Propose swapping a path reference in a `.auto`. Dry-run unless `out` given. |
 | `loop_check` | `log`, `scenario` | Verify one scenario's success criteria against a log — the closed loop's "verify" step. |
@@ -46,6 +48,9 @@ descriptions themselves (`tools/list`) for exact schemas.
 | `loop_generate` | `log`, `out?`, `name?`, `phaseSignal?`, `phaseEquals?` | Derive a regression scenario from a known-good run. Dry-run unless `out` given. |
 | `loop_diff` | `baseline`, `log` | Rank how far a run diverged from a known-good baseline, signal by signal. |
 | `mode_a` | `db`, `file` | Run the full Mode A between-match pass and persist metrics to the trend store (wraps `power_analysis`/`battery_health`/`can_health`/`loop_timing`). |
+| `mode_a_scan` | `db`, `dirs` | Sweep directories (USB, DS logs) for logs not yet ingested and run Mode A on each. For continuous ingest use the daemon: `modes watch <db> <dir>...`. |
+| `smallmodel_train` | `log`, `out`, `signals`, `positives`, `negatives?`, `stride?`, `threshold?` | Train a tiny classifier from a few moments you mark in a log. Timestamps in seconds. Metrics are training-set only. |
+| `smallmodel_score` | `model`, `log`, `top?` | Run a saved small model over a log to see where it fires — how you validate it on a log it was not trained on. |
 | `nt_status` | `host`, `port?` | Check whether a live robot's NetworkTables connection is up. Read-only. |
 | `nt_get` | `host`, `key`, `port?` | Read one live NetworkTables value by key. Read-only. |
 | `nt_keys` | `host`, `prefix?`, `port?` | List live NetworkTables keys, optionally by prefix. Read-only. |
@@ -147,9 +152,8 @@ No time pressure. This is where season-long and multi-log reasoning happens.
     short (gains or timing); `SIGNAL_ABSENT` usually means a renamed log key, not a robot fault.
   - When a turn passes, bank it: `loop_generate` on that log turns the fix into a standing check,
     so the same regression cannot come back silently.
-- This skill covers every tool the server currently exposes (Modules 1–6, `modes`, and `live-nt`
-  — 38 tools as of this writing). `smallmodel` (the big-AI-trains-small-AI technique) is built and
-  tested but not yet wired into an MCP tool. Tool count and shape will keep changing as the
+- This skill covers every tool the server currently exposes (Modules 1–6, `modes`, `smallmodel`,
+  and `live-nt` — 43 tools as of this writing). Tool count and shape will keep changing as the
   server grows; re-check `tools/list` (or `get_guide`) rather than assuming this table is
   exhaustive forever.
 

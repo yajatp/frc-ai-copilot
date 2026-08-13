@@ -16,7 +16,24 @@ public final class LogisticModel {
         this.nFeatures = nFeatures;
     }
 
-    /** Train via batch gradient descent on standardized-ish features. */
+    /** Rebuild a model from persisted weights (see {@link SavedModel}). */
+    public static LogisticModel of(double[] weights, int nFeatures) {
+        if (weights.length != nFeatures + 1) {
+            throw new IllegalArgumentException(
+                    "expected " + (nFeatures + 1) + " weights (features + bias), got " + weights.length);
+        }
+        return new LogisticModel(weights.clone(), nFeatures);
+    }
+
+    /** Train on an already-standardized {@link Dataset}. */
+    public static LogisticModel train(Dataset dataset, int epochs, double learningRate) {
+        return train(dataset.x(), dataset.y(), epochs, learningRate);
+    }
+
+    /**
+     * Train via batch gradient descent. Features are expected to be standardized already — see
+     * {@link Dataset#standardized} for why that is not optional on real robot signals.
+     */
     public static LogisticModel train(double[][] x, int[] y, int epochs, double learningRate) {
         int n = x.length;
         int f = x[0].length;

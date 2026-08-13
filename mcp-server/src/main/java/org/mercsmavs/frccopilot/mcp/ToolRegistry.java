@@ -44,6 +44,10 @@ import org.mercsmavs.frccopilot.simreplay.RegressionSuite;
 import org.mercsmavs.frccopilot.simreplay.ScenarioGenerator;
 import org.mercsmavs.frccopilot.simreplay.Scenario;
 import org.mercsmavs.frccopilot.simreplay.Verifier;
+import org.mercsmavs.frccopilot.smallmodel.Dataset;
+import org.mercsmavs.frccopilot.smallmodel.LogFeatures;
+import org.mercsmavs.frccopilot.smallmodel.LogisticModel;
+import org.mercsmavs.frccopilot.smallmodel.SavedModel;
 import org.mercsmavs.frccopilot.write.AutoFile;
 import org.mercsmavs.frccopilot.write.PathDiff;
 import org.mercsmavs.frccopilot.write.PathFile;
@@ -201,6 +205,41 @@ final class ToolRegistry {
                                         + " THIS match' without resimulating. Ignored by sim configs.",
                                 false)),
                 ToolRegistry::loopIterate));
+
+        add(tools, new SimpleTool("smallmodel_train", "Train a tiny logistic classifier from a few"
+                + " moments YOU mark in a log — the 'big AI trains a small AI' technique. The use case"
+                + " is a judgement call with no sensor for it (e.g. the right moment to stage game"
+                + " pieces): mark ~30 good moments, learn a predictor over chosen signals, save it as"
+                + " readable JSON that can be checked into the robot repo. Timestamps are SECONDS of"
+                + " log time. Metrics returned are TRAINING-set metrics — they show the model fit your"
+                + " marks, not that it generalizes; validate with smallmodel_score on a different log.",
+                Schemas.object(
+                        new Schemas.Prop("log", "string", "Path to the .wpilog to learn from", true),
+                        new Schemas.Prop("out", "string", "Where to write the model JSON", true),
+                        new Schemas.Prop("signals", "array",
+                                "Feature signal names, exactly as they appear in the log"
+                                        + " (use log_entries to find them)", true, "string"),
+                        new Schemas.Prop("positives", "array",
+                                "Timestamps (seconds) you are marking as the positive class", true, "number"),
+                        new Schemas.Prop("negatives", "array",
+                                "Explicit negative timestamps (seconds). Omit to draw negatives from"
+                                        + " the rest of the log.", false, "number"),
+                        new Schemas.Prop("stride", "integer",
+                                "When drawing negatives, take every Nth sample (default 10)", false),
+                        new Schemas.Prop("threshold", "number",
+                                "Decision threshold (default 0.5; raise it to cut false positives)", false),
+                        new Schemas.Prop("epochs", "integer", "Training epochs (default 3000)", false),
+                        new Schemas.Prop("learningRate", "number", "Learning rate (default 0.1)", false)),
+                ToolRegistry::smallmodelTrain));
+
+        add(tools, new SimpleTool("smallmodel_score", "Run a saved small model over a log and report"
+                + " where it fires, highest-scoring moments first. This is how you validate a model"
+                + " against a log it was not trained on before trusting it on the robot.",
+                Schemas.object(
+                        new Schemas.Prop("model", "string", "Path to a model JSON from smallmodel_train", true),
+                        new Schemas.Prop("log", "string", "Path to the .wpilog to score", true),
+                        new Schemas.Prop("top", "integer", "How many top moments to list (default 10)", false)),
+                ToolRegistry::smallmodelScore));
 
         add(tools, new SimpleTool("loop_history", "The iteration journal for a project: every"
                 + " previous turn, which source files changed, and how each checked value moved."
@@ -399,7 +438,7 @@ final class ToolRegistry {
 
     private static String guide(JsonNode a) {
         return """
-                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT + docs; 34 tools).
+                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT + docs + small models; 43 tools).
 
                 Workflow:
                   0) For any API or rules question, call search_docs / search_manual FIRST. The
@@ -413,7 +452,10 @@ final class ToolRegistry {
                   3) Use power_analysis, can_health, battery_health, and loop_timing for the Mode-A
                      safety picture (brownouts, battery, CAN, loop overruns) — the 2026
                      energy-management meta. mode_a runs this whole pass in one call and persists
-                     metrics to a trend store.
+                     metrics to a trend store. mode_a_scan sweeps a USB drive or the Driver
+                     Station log folder for logs not yet ingested and runs that pass on each; for
+                     continuous between-match ingest, the pit laptop runs the daemon instead
+                     (`modes watch <db> <dir>...`), which cannot be a tool because it blocks.
                   4) Use swerve_analysis, vision_analysis, and anomaly for deeper Mode-B diagnosis
                      when there's time to chase a specific hypothesis. The general-purpose
                      primitives compose for anything not covered by a named tool: signal_stats
@@ -421,12 +463,22 @@ final class ToolRegistry {
                      events), compare_signals (match-over-match or left-vs-right), correlate
                      (does X move with Y?), data_quality (is this signal even worth trusting?),
                      and analyze_cycles (scoring throughput from a cycle counter).
-                  5) Use pathplanner_show/fudge/set_speed and auto_show/auto_swap_path to propose
-                     autonomous adjustments (the only thing teams change at competition).
+                  5) Use pathplanner_show/fudge/set_speed/move_marker/set_zone and
+                     auto_show/auto_swap_path to propose autonomous adjustments (the only thing
+                     teams change at competition). Waypoints are the positional tweak;
+                     move_marker/set_zone are the timing ones. Marker and zone positions are
+                     waypoint-relative, NOT seconds — call pathplanner_show first.
                   6) Use loop_check/loop_suite to verify a robot-code fix against a written
                      success criterion (or a whole regression suite) before calling it done.
-                  7) Use nt_status/nt_get/nt_keys to read a live, running robot's NetworkTables
+                  7) Use loop_iterate to run a full build/run/verify turn after editing robot
+                     code. For a REPLAY config, pass inputLog to ask what a change would have done
+                     on a match that already happened, without resimulating.
+                  8) Use nt_status/nt_get/nt_keys to read a live, running robot's NetworkTables
                      (read-only — there is no NT write tool).
+                  9) smallmodel_train/smallmodel_score handle the judgement calls no sensor
+                     reports: mark ~30 moments in a log, learn a tiny inspectable classifier, then
+                     score it against a DIFFERENT log before trusting it. Its metrics are
+                     training-set metrics; treat them as fit, not generalization.
 
                 Epistemic guardrails: every analysis result carries a data-quality/confidence block
                 and hedged language. A single match is rarely conclusive — corroborate across matches.
@@ -938,6 +990,102 @@ final class ToolRegistry {
                 scenario == null ? null : Path.of(scenario),
                 inputLog == null ? null : Path.of(inputLog));
         return report.render();
+    }
+
+    private static String smallmodelTrain(JsonNode a) throws Exception {
+        List<String> signals = strings(a, "signals");
+        List<Long> positives = timestampsUs(a, "positives");
+        List<Long> negatives = timestampsUs(a, "negatives");
+        if (signals.isEmpty()) {
+            return "Pass 'signals': the log signals to use as features (log_entries lists them).";
+        }
+        if (positives.isEmpty()) {
+            return "Pass 'positives': the timestamps (seconds) you are marking as the positive class."
+                    + " A handful is enough — that is the point of the technique.";
+        }
+        int stride = a.hasNonNull("stride") ? a.get("stride").asInt() : 10;
+        double threshold = a.hasNonNull("threshold") ? a.get("threshold").asDouble() : 0.5;
+        int epochs = a.hasNonNull("epochs") ? a.get("epochs").asInt() : 3000;
+        double lr = a.hasNonNull("learningRate") ? a.get("learningRate").asDouble() : 0.1;
+
+        String logPath = str(a, "log");
+        WpilogReader reader = new WpilogReader(logPath);
+        Dataset dataset = LogFeatures.build(reader, signals, positives, negatives, stride);
+        LogisticModel model = LogisticModel.train(dataset, epochs, lr);
+        LogisticModel.Eval eval = model.evaluate(dataset.x(), dataset.y(), threshold);
+
+        Path out = Path.of(str(a, "out"));
+        SavedModel saved = SavedModel.of(
+                out.getFileName().toString().replaceFirst("\\.json$", ""),
+                "Trained from " + logPath, dataset, model, threshold, eval);
+        saved.save(out);
+
+        return saved.renderSummary()
+                + "saved: " + out + "\n"
+                + "NOTE: those metrics are on the TRAINING set. They show the model fit your marks,"
+                + " not that it generalizes. Validate with smallmodel_score against a different log"
+                + " (or in replay) before trusting it on the robot.";
+    }
+
+    private static String smallmodelScore(JsonNode a) throws Exception {
+        SavedModel model = SavedModel.load(Path.of(str(a, "model")));
+        WpilogReader reader = new WpilogReader(str(a, "log"));
+        int top = a.hasNonNull("top") ? a.get("top").asInt() : 10;
+
+        List<java.util.TreeMap<Long, Double>> timelines =
+                LogFeatures.timelines(reader, model.features);
+        record Scored(long ts, double p) {}
+        List<Scored> all = new java.util.ArrayList<>();
+        int fired = 0;
+        for (long ts : timelines.get(0).navigableKeySet()) {
+            double p = model.probability(LogFeatures.featuresAt(timelines, ts));
+            all.add(new Scored(ts, p));
+            if (p >= model.threshold) {
+                fired++;
+            }
+        }
+        all.sort((x, y) -> Double.compare(y.p(), x.p()));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("model %s over %s%n", model.name, str(a, "log")));
+        sb.append(String.format("fired at %d of %d sampled timestamps (threshold %.2f)%n",
+                fired, all.size(), model.threshold));
+        sb.append("highest-scoring moments:\n");
+        for (int i = 0; i < Math.min(top, all.size()); i++) {
+            sb.append(String.format("  %8.3f s  p=%.4f%n",
+                    all.get(i).ts() / 1_000_000.0, all.get(i).p()));
+        }
+        return sb.toString();
+    }
+
+    /** Read a JSON array of strings, tolerating a single string for convenience. */
+    private static List<String> strings(JsonNode a, String field) {
+        List<String> out = new java.util.ArrayList<>();
+        JsonNode n = a.get(field);
+        if (n == null || n.isNull()) {
+            return out;
+        }
+        if (n.isTextual()) {
+            out.add(n.asText());
+        } else if (n.isArray()) {
+            n.forEach(e -> out.add(e.asText()));
+        }
+        return out;
+    }
+
+    /** Read a JSON array of timestamps in seconds, converted to the log's microseconds. */
+    private static List<Long> timestampsUs(JsonNode a, String field) {
+        List<Long> out = new java.util.ArrayList<>();
+        JsonNode n = a.get(field);
+        if (n == null || n.isNull()) {
+            return out;
+        }
+        if (n.isNumber() || n.isTextual()) {
+            out.add((long) (n.asDouble() * 1_000_000));
+        } else if (n.isArray()) {
+            n.forEach(e -> out.add((long) (e.asDouble() * 1_000_000)));
+        }
+        return out;
     }
 
     private static String loopHistory(JsonNode a) throws Exception {

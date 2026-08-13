@@ -10,6 +10,7 @@ dependencies {
     implementation project(':modes')
     implementation project(':live-nt')
     implementation project(':knowledge')
+    implementation project(':smallmodel')
     implementation "edu.wpi.first.ntcore:ntcore-java:${wpilibVersion}" // NetworkTableValue/Instance on the nt_* tool API
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
 
