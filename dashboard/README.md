@@ -78,11 +78,23 @@ The design system (`src/globals.css`) is the same Linear-derived token set as th
 dashboard, so the two tools look like one family. Components style themselves from those variables
 inline; there is no Tailwind.
 
-## Status
+## Pages
 
-Phase 1 ships the **Live** page: connection state, the four health verdicts, live charts, and signal
-coverage. The remaining pages (Pit, Match, Signals, Paths, Trends, Profile) are listed in the nav as
-disabled so the intended shape of the tool is visible.
+All seven are built and active — there is no disabled nav.
+
+| Page | What it shows |
+|---|---|
+| **Live** | Connection state, the four health verdicts, live charts, signal coverage |
+| **Pit** | The between-match view: current flags and what to check before the next match |
+| **Match** | A single match's timeline and events |
+| **Signals** | Browse and plot any published signal |
+| **Paths** | PathPlanner paths, their waypoints, constraints, markers, and zones |
+| **Trends** | One metric across every ingested log — the season view, read from the trend store |
+| **Profile** | The loaded robot profile and which checks its signals can actually support |
+
+Trends, Match and the log list read the same SQLite trend store the Mode A pass writes to, so
+pointing the log-watcher daemon (`modes watch <db> <dir>...`) and the dashboard at one database file
+is the whole integration between them — results appear here as matches are ingested.
 
 Signal coverage is reported rather than hidden: a check whose input the robot does not publish reads
 as "cannot see this", never as "fine".

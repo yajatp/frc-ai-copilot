@@ -1,72 +1,128 @@
 # FRC AI Copilot
 
-An open-source, team-agnostic AI copilot for FRC robot code, built by Team 6369 (Mercenary
-Robotics) / 6773 for use across both teams. It combines deep telemetry analysis, a live
-competition mode, and — the north star — a **254-style agentic closed loop that observes logs,
-edits robot code, runs it in sim/replay, verifies against success criteria, and iterates.**
+An AI copilot for FRC robot code, built by Team 6369 (Mercenary Robotics) / 6773. It reads your
+match logs, tells you what went wrong, proposes the autonomous tweaks you'd actually make between
+matches, and — the part that matters most — closes the loop on robot code: it edits, builds, runs
+the code in simulation or against a recorded log, checks the result against success criteria you
+wrote down, and iterates until they pass.
 
-It ships as an MCP server + Claude Code skills (Claude Code is the harness — we make it
-FRC-fluent, we don't build a coding agent).
+It ships as an MCP server plus a set of skills, so it runs inside the AI coding tool you already
+use. It is FRC expertise, not a coding agent.
 
-> Status: all core modules (1–6) + the MCP server are implemented and tested. The agentic
-> closed loop's observe→verify path is proven on the 254 "auto scores 0 balls" case. See the plan
-> for what deepens next (real Echo sim-in-the-loop, live-NT tooling in the server).
+## Why it's built this way
 
-## Why this exists
-Teams do not recompile robot code at competition — they tweak autonomous paths. So the tool has
-two modes:
-- **Mode A (live/competition):** fast, cheap — brownout/CAN/battery safety flags + PathPlanner
-  waypoint suggestions between matches. (The 2026 REBUILT "hidden meta" is energy management, so
-  power analysis is the centerpiece.)
-- **Mode B (post-event/off-season):** the deep work — full audits, season trends, and the
-  agentic sim/replay code-improvement loop.
+Teams don't recompile robot code at competition — they tweak autonomous paths. So there are two
+modes, and they have genuinely different budgets:
 
-## Modules
-| Module | Status | What it does |
-|---|---|---|
-| 1 · `core-ingest` | ✅ built + tested | `.wpilog` parsing (`DataLogReader`) + struct decoding (Pose2d/SwerveModuleState/…) + SQLite trend store + TBA client + `.revlog` cross-correlation sync |
-| 2 · `profile` | ✅ built + tested | Team/robot profile **bootstrapped** from the repo (pathplanner settings, CAN IDs, vendordeps) + bundled field/game data + mechanisms |
-| 3 · `analysis` | ✅ built + tested | 15 composable primitives with epistemic guardrails: power/brownout, CAN, battery, loop-timing, swerve/PID, vision, cycle-time, anomaly/peaks/correlate/compare — all reachable from both the MCP server and the `analysis` CLI |
-| 4 · `write-layer` | ✅ built + tested | PathPlanner `.path` + `.auto` editing as reviewable diffs (dry-run by default) + `DeployGate` |
-| 5 · `live-nt` | ✅ built + tested | NT4 live telemetry (read) + safety-scoped write boundary (default-deny whitelist, hard denylist, doubles-only, no CLI write) |
-| 6 · `simreplay` | ✅ built + tested | **Full agentic closed loop** edit→build→run→verify→diagnose→iterate against headless sim: phase-aware assertions, failure diagnosis + baseline signal divergence, iteration journal, and scenario generation from known-good runs. See [docs/CLOSED-LOOP.md](docs/CLOSED-LOOP.md) |
-| — · `modes` | ✅ built + tested | Mode A between-match orchestrator (flags + persists metrics to the trend store) |
-| — · `smallmodel` | ✅ built + tested | "Big-AI-trains-small-AI": tiny logistic model over hand-labeled log examples |
-| — · `mcp-server` | ✅ built + tested | Self-contained JSON-RPC stdio server exposing **38 tools**; `get_guide` discovery |
-| — · `dashboard` | ✅ Phase 1 & 2 complete | Local web UI (loopback, read-only) — live NT telemetry, health tiles, Signals, Pit, Match, Paths, Trends, and Profile views. See [dashboard/README.md](dashboard/README.md) |
-| — · `vscode-extension` | ✅ compiles | VS Code extension that builds/registers the MCP server |
+- **Mode A — between matches.** Fast and narrow. Brownout, battery, CAN and loop-timing flags, plus
+  PathPlanner waypoint and timing suggestions. You have the gap between two matches, so this pass
+  stays cheap and runs automatically as logs appear.
+- **Mode B — after the event.** The deep work. Full audits, season trends, and the closed-loop
+  code-improvement cycle, where there's time to chase a hypothesis properly.
+
+Two principles run through everything:
+
+**Nothing is stated with more confidence than the data supports.** Every analysis result carries a
+sample count, a timing-regularity check and a confidence level, and the language is hedged to match.
+A single match is rarely conclusive, and the tool says so instead of sounding certain.
+
+**Nothing writes without showing you first.** Every edit is a reviewable diff, dry-run by default,
+and writes only to a file you name — the original is never overwritten in place. The live robot
+connection is read-only.
+
+## What it does
+
+| Area | What you get |
+|---|---|
+| **Log analysis** | `.wpilog` parsing with struct decoding (Pose2d, SwerveModuleState, …), and 15 composable primitives: power/brownout, battery, CAN, loop timing, swerve/PID, vision, cycle times, anomalies, peaks, correlation, comparison |
+| **Season trends** | Every ingested log's metrics in a local SQLite store, so a season query is a database read rather than a re-parse of every log |
+| **Robot profile** | Bootstrapped from your repo — PathPlanner settings, CAN IDs, vendordeps — so analysis is specific to your robot instead of generic |
+| **Between-match automation** | A log-watcher daemon that spots new logs on a USB drive or in the Driver Station folder, runs the Mode A pass, and records the results |
+| **Autonomous editing** | PathPlanner `.path` and `.auto` edits as reviewable diffs: waypoint fudging, global speed, event-marker timing, and per-zone constraints |
+| **Live telemetry** | NetworkTables 4 read access, with a hard safety boundary on the single write path |
+| **Closed loop** | edit → build → run → verify → diagnose → iterate, against headless simulation or a replay of a recorded match |
+| **Offline docs** | Local full-text search over WPILib, CTRE Phoenix 6, PhotonVision and PathPlanner docs plus the game manual, page-cited. No network, which matters in a pit |
+| **Dashboard** | A local web UI over all of it — live health tiles, pit and match views, signals, paths, trends, profile |
+| **Small models** | Train a tiny, inspectable classifier from a few moments you mark in a log, for the judgement calls no sensor reports |
+
+Everything is reachable three ways: as MCP tools (43 of them), as module CLIs, and — for the
+analysis and telemetry parts — in the dashboard.
+
+## Requirements
+
+The WPILib 2026 install, which provides the JDK and an offline Maven repository. That's it; there is
+no network dependency at runtime.
+
+Built on WPILib, PathPlanner, and maple-sim for physics simulation.
 
 ## Build
-Requires the WPILib 2026 install (provides the JDK + offline Maven repo). Everything stays
-project-local:
+
+All build state stays inside the project folder:
 
 ```bash
 export JAVA_HOME=~/wpilib/2026/jdk
 export GRADLE_USER_HOME="$PWD/.gradle-home"
-./gradlew build          # compile + test all modules
+./gradlew build          # compile + test everything
 ```
 
-Try a module CLI. Real logs are gitignored (they're data, not source), so generate a synthetic
-150-second match first — it contains a real brownout, a CAN error burst, loop overruns, and vision
-dropouts, so every primitive has something to report:
+New here? [CONTRIBUTING.md](CONTRIBUTING.md) is the walkthrough, including the first-run steps that
+aren't obvious. [docs/SETUP.md](docs/SETUP.md) covers registering the MCP server with your editor.
+
+## Try it
+
+Real logs are gitignored — they're data, not source — so generate a synthetic 150-second match
+first. It contains a real brownout, a CAN error burst, loop overruns and vision dropouts, so every
+primitive has something to report:
 
 ```bash
 ./gradlew :core-ingest:installDist :analysis:installDist
 core-ingest/build/install/core-ingest/bin/core-ingest gen demo.wpilog
 
-analysis/build/install/analysis/bin/analysis analyze demo.wpilog   # Mode-A safety sweep
+analysis/build/install/analysis/bin/analysis analyze demo.wpilog   # Mode A safety sweep
 analysis/build/install/analysis/bin/analysis full    demo.wpilog   # + swerve/vision/cycles
-analysis/build/install/analysis/bin/analysis         # full subcommand list
+analysis/build/install/analysis/bin/analysis                       # all subcommands
 ```
 
-## Roadmap & Next Steps
-For future AI sessions and developers looking to contribute, see [ROADMAP.md](ROADMAP.md) for planned horizons (Sim/Replay deepening, post-match log daemon, vision analytics primitives, and one-command team setup).
+The dashboard, against a built-in simulated robot:
 
-## Acknowledgments
-Built independently, but informed by prior art in the FRC ecosystem — WPILib, AdvantageKit
-(Team 6328), PathPlanner, maple-sim (IronMaple), wpilog-mcp (Team 2363), and ClaudeScope. Team
-254's 2026 Championship talk directly inspired the agentic closed-loop design.
+```bash
+./gradlew :dashboard:run --args="--sim"     # then open http://localhost:5800
+```
+
+One turn of the closed loop, against a real WPILib robot running headless on simulated physics:
+
+```bash
+./gradlew :simreplay:installDist
+simreplay/build/install/simreplay/bin/simreplay iterate example-robot/loop.yaml
+```
+
+## Documentation
+
+| Doc | What's in it |
+|---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Getting set up and finding your way around |
+| [docs/SETUP.md](docs/SETUP.md) | Build details and registering the MCP server |
+| [docs/CLOSED-LOOP.md](docs/CLOSED-LOOP.md) | How the closed loop works, sim and replay |
+| [dashboard/README.md](dashboard/README.md) | The web UI |
+| [ROADMAP.md](ROADMAP.md) | What's planned next |
+
+## Modules
+
+| Module | What it does |
+|---|---|
+| `core-ingest` | `.wpilog` parsing, struct decoding, the SQLite trend store, match-data lookup, `.revlog` correlation |
+| `profile` | Robot profile bootstrapped from the repo, plus bundled field and game data |
+| `analysis` | The 15 analysis primitives, with the confidence guardrails |
+| `write-layer` | PathPlanner `.path` / `.auto` editing as reviewable diffs, plus the deploy gate |
+| `live-nt` | NT4 telemetry read, and the safety-scoped write boundary |
+| `simreplay` | The closed loop: phase-aware assertions, failure diagnosis, baseline divergence, iteration journal, scenario generation |
+| `modes` | Mode A orchestration and the log-watcher daemon |
+| `smallmodel` | Small-model training from marked log examples |
+| `knowledge` | The offline documentation and game-manual index |
+| `mcp-server` | The MCP server exposing all 43 tools; start with `get_guide` |
+| `dashboard` | The local web UI |
+| `example-robot` | A real command-based robot on simulated physics — the worked example the closed loop drives |
 
 ## License
-[MIT](LICENSE) — use it, fork it, ship it on your robot. Attribution appreciated, not required.
 
+[MIT](LICENSE) — use it, fork it, ship it on your robot. Attribution appreciated, not required.

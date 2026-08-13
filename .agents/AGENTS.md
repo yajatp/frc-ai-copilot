@@ -1,7 +1,7 @@
 # FRC AI Copilot — Workspace Guidelines & Future AI Instructions
 
 ## Project Overview
-This repository contains an open-source, team-agnostic AI copilot for FRC robot code built by Team 6369 (Mercenary Robotics) / 6773. It exposes 38 MCP tools, offline documentation + game-manual search, closed-loop sim/replay capabilities, Mode A competition diagnostics, and a local web dashboard. Licensed MIT.
+This repository contains an open-source, team-agnostic AI copilot for FRC robot code built by Team 6369 (Mercenary Robotics) / 6773. It exposes 43 MCP tools, offline documentation + game-manual search, closed-loop sim/replay capabilities, Mode A competition diagnostics, and a local web dashboard. Licensed MIT.
 
 ## Dashboard Status
 - **Phase 1 & Phase 2 Complete**: All 7 dashboard sections (Live, Pit, Match, Signals, Paths, Trends, Profile) are built, verified, and active.
@@ -37,9 +37,13 @@ If a knowledge tool reports "No knowledge index", that is the fix — not a bug.
 local state, not source. A fresh checkout starts with no history; that is expected, not a bug.
 
 ## Next Priority
-**Finish the dashboard.** The closed loop (Horizon 1) landed on 2026-08-07 — see
-[docs/CLOSED-LOOP.md](../docs/CLOSED-LOOP.md) for how it works and
-[ROADMAP.md](../ROADMAP.md) for what is deliberately left in that horizon.
+The PRD's Part 3 spec is now met: the four gaps a 2026-08-12 audit found against it are closed —
+Mode A's automatic trigger (`modes watch` log-watcher daemon), PathPlanner event-marker/constraint-zone
+timing edits, a proven replay path (`{inputLog}`), and `smallmodel` on the MCP surface. The dashboard
+was already complete; the doc that said otherwise was stale.
+
+Next work is the roadmap extensions (Horizons 2-4) — see [ROADMAP.md](../ROADMAP.md). Note that
+Horizon 2's log-watcher daemon shipped early, as part of closing the Mode A spec gap.
 
 Two things worth knowing before extending the loop:
 - `example-robot/loop.yaml` is the worked example. `simreplay iterate example-robot/loop.yaml`

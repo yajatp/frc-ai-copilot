@@ -74,6 +74,25 @@ diagnose → iterate** cycle now runs against real sim-in-the-loop as a single c
 
 MCP server is now at **38 tools**.
 
+---
+
+## ✅ COMPLETED: PRD Part 3 spec gaps closed (2026-08-12)
+*An audit against the PRD found four gaps. All four are closed; the server is now at **43 tools**.*
+
+- ✅ **Mode A's automatic trigger** — the log-watcher daemon, recorded under Horizon 2 below.
+- ✅ **PathPlanner timing edits** — event-marker retiming and constraint zones are now editable, not
+  just preserved on write (`pathplanner_move_marker`, `pathplanner_set_zone`). Positions are
+  waypoint-relative rather than seconds, which the tool descriptions state outright.
+- ✅ **The replay path is proven** — `{inputLog}` names the log a run replays, `--input-log` overrides
+  it per turn. Demonstrated against a recorded match that scored 0: replayed through fixed code it
+  reports 5 and passes, through the broken code it reproduces the 0 and fails.
+  - *Honest limit:* replay is only valid for code downstream of the signals in the log. And the
+    proof uses `example-robot`'s own replay source — an AdvantageKit `REPLAY` task fits the same
+    contract, but no AdvantageKit project exists here, so that integration is untested, not verified.
+- ✅ **`smallmodel` reachable** — its API took a raw numeric matrix, so exposing it needed the missing
+  halves first: labeled-example extraction from a `.wpilog` and JSON model persistence
+  (`smallmodel_train`, `smallmodel_score`).
+
 ### Remaining
 - **Echo Swerve Simulation depth**:
   - Extend the `example-robot` physics model (`maple-sim`) to include 3D game piece intake, hopper packing, and scoring physics. The loop mechanics are done; this deepens what the simulation can express.
@@ -87,9 +106,14 @@ MCP server is now at **38 tools**.
 ## ⚡ Horizon 2 — Pit Automations & Post-Match Workflow (Mode A)
 *Target: Zero-friction telemetry analysis between competition matches.*
 
-- **Automatic Post-Match Log Ingest Daemon**:
-  - A background file-watcher daemon running on the pit laptop that detects newly attached USB drives or Driver Station log directory updates.
-  - Automatically parses new `.wpilog` files, runs Mode A safety analysis, records metrics/events to the SQLite `TrendStore`, and notifies pit crew via the dashboard.
+- ✅ **Automatic Post-Match Log Ingest Daemon (2026-08-12)** — shipped early, because the PRD
+  specifies Mode A running automatically and a manual-only `mode_a` was a spec gap, not an extension.
+  `modes watch <db> <dir>...` polls USB mount points and the Driver Station log directory, waits for
+  a file's size to stabilize before ingesting (a wpilog mid-flush is valid-but-truncated), dedupes
+  against the `TrendStore` so restarts do not re-analyze, and runs the Mode A pass on each new log.
+  Results reach the pit crew via the daemon's console and via the `TrendStore` the dashboard already
+  reads — one SQLite file is the whole integration. `mode_a_scan` is the request/response-shaped
+  catch-up sweep for use from MCP; the daemon itself stays CLI-only because a tool call has to return.
 - **Auto-Tuning Trajectory Optimizer**:
   - Integrate the `write-layer` (`PathFile` + `PathDiff`) with an automated tuning loop that compares planned PathPlanner paths against actual swerve pose logs.
   - Generates recommended `.path` waypoint adjustments for driver review between matches.
