@@ -34,3 +34,6 @@ local.properties
 
 # Closed-loop iteration state (per-iteration logs, journal, baseline) — local, not source
 .loop/
+
+# Smoke-test output from the CI MCP check, when run locally
+tools.json
