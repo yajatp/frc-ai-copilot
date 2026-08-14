@@ -35,18 +35,18 @@ configurations {
 }
 
 dependencies {
-    natives "edu.wpi.first.hal:hal-cpp:${wpilibVersion}:osxuniversal@zip"
-    natives "edu.wpi.first.wpimath:wpimath-cpp:${wpilibVersion}:osxuniversal@zip"
-    natives "edu.wpi.first.ntcore:ntcore-cpp:${wpilibVersion}:osxuniversal@zip"
-    natives "edu.wpi.first.wpinet:wpinet-cpp:${wpilibVersion}:osxuniversal@zip"
-    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.hal:hal-cpp:${wpilibVersion}:${rootProject.wpiNativeClassifier}@zip"
+    natives "edu.wpi.first.wpimath:wpimath-cpp:${wpilibVersion}:${rootProject.wpiNativeClassifier}@zip"
+    natives "edu.wpi.first.ntcore:ntcore-cpp:${wpilibVersion}:${rootProject.wpiNativeClassifier}@zip"
+    natives "edu.wpi.first.wpinet:wpinet-cpp:${wpilibVersion}:${rootProject.wpiNativeClassifier}@zip"
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:${rootProject.wpiNativeClassifier}@zip"
 }
 
 def nativesDir = layout.buildDirectory.dir('natives')
 
 def extractNatives = tasks.register('extractNatives', Copy) {
     from { configurations.natives.collect { zipTree(it) } }
-    include '**/*.dylib'
+    include rootProject.wpiNativePattern
     eachFile { it.path = it.name }
     includeEmptyDirs = false
     into nativesDir

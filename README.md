@@ -45,13 +45,16 @@ connection is read-only.
 | **Dashboard** | A local web UI over all of it — live health tiles, pit and match views, signals, paths, trends, profile |
 | **Small models** | Train a tiny, inspectable classifier from a few moments you mark in a log, for the judgement calls no sensor reports |
 
-Everything is reachable three ways: as MCP tools (43 of them), as module CLIs, and — for the
+Everything is reachable three ways: as MCP tools (44 of them), as module CLIs, and — for the
 analysis and telemetry parts — in the dashboard.
 
 ## Requirements
 
 The WPILib 2026 install, which provides the JDK and an offline Maven repository. That's it; there is
 no network dependency at runtime.
+
+Runs on **Windows, macOS and Linux** (x64 or ARM). The correct native libraries are selected
+automatically from the machine you build on.
 
 Built on WPILib, PathPlanner, and maple-sim for physics simulation.
 
@@ -60,13 +63,38 @@ Built on WPILib, PathPlanner, and maple-sim for physics simulation.
 All build state stays inside the project folder:
 
 ```bash
+# macOS / Linux
 export JAVA_HOME=~/wpilib/2026/jdk
 export GRADLE_USER_HOME="$PWD/.gradle-home"
 ./gradlew build          # compile + test everything
 ```
 
+```powershell
+# Windows (PowerShell)
+$env:JAVA_HOME = "$HOME\wpilib\2026\jdk"
+$env:GRADLE_USER_HOME = "$PWD\.gradle-home"
+.\gradlew.bat build
+```
+
 New here? [CONTRIBUTING.md](CONTRIBUTING.md) is the walkthrough, including the first-run steps that
 aren't obvious. [docs/SETUP.md](docs/SETUP.md) covers registering the MCP server with your editor.
+
+## Start here: point it at your robot
+
+Everything else reads a **robot profile** — your CAN IDs, drivetrain geometry, PathPlanner settings
+and vendordeps — so analysis is about your robot rather than a generic one. Generate it from your
+existing robot repository; nothing needs to be filled in by hand:
+
+```bash
+./gradlew :profile:installDist
+profile/build/install/profile/bin/profile init /path/to/your-robot-repo profiles/my-robot.yaml 1234 myrobot
+```
+
+Or ask your AI assistant to call `profile_init`, which does the same thing and defaults to a dry run.
+
+**Read the warnings it prints.** It flags CAN IDs your code marked `TODO` or `NOT ACCURATE`, and a
+wrong CAN ID sends someone to check the wrong motor. Everything else it extracts is parsed from your
+source, not guessed.
 
 ## Try it
 
@@ -119,7 +147,7 @@ simreplay/build/install/simreplay/bin/simreplay iterate example-robot/loop.yaml
 | `modes` | Mode A orchestration and the log-watcher daemon |
 | `smallmodel` | Small-model training from marked log examples |
 | `knowledge` | The offline documentation and game-manual index |
-| `mcp-server` | The MCP server exposing all 43 tools; start with `get_guide` |
+| `mcp-server` | The MCP server exposing all 44 tools; start with `get_guide` |
 | `dashboard` | The local web UI |
 | `example-robot` | A real command-based robot on simulated physics — the worked example the closed loop drives |
 

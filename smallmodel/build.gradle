@@ -22,14 +22,14 @@ configurations {
 }
 
 dependencies {
-    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:${rootProject.wpiNativeClassifier}@zip"
 }
 
 def nativesDir = layout.buildDirectory.dir('natives')
 
 def extractNatives = tasks.register('extractNatives', Copy) {
     from { configurations.natives.collect { zipTree(it) } }
-    include '**/*.dylib'
+    include rootProject.wpiNativePattern
     eachFile { it.path = it.name }
     includeEmptyDirs = false
     into nativesDir

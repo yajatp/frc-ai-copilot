@@ -2,6 +2,40 @@
 // Java core (JDK 17) so we can directly reuse WPILib's DataLogReader, wpimath, ntcore,
 // and later orchestrate the team's own Gradle project for sim/replay.
 
+// --- Desktop native libraries, per platform ---------------------------------------------------
+//
+// ntcore, the HAL and wpiutil are JNI libraries: the Java jars need a matching native for the
+// machine actually running them. WPILib publishes one zip per platform, so the build has to ask for
+// the right classifier and extract the right file extension. Hardcoding either one pins the whole
+// project to a single operating system, which is how this was macOS-only.
+//
+// The classifier is resolved from the JVM's own os.name/os.arch rather than from a build flag, so a
+// fresh clone works with no configuration on any supported machine. Each platform's WPILib installer
+// ships that platform's desktop natives in its offline Maven repo, so this resolves locally; CI adds
+// the public WPILib repo, which carries all of them.
+ext.wpiNative = { ->
+    String os = System.getProperty('os.name').toLowerCase()
+    String arch = System.getProperty('os.arch').toLowerCase()
+    boolean arm = arch.contains('aarch64') || arch.contains('arm64')
+    if (os.contains('mac') || os.contains('darwin')) {
+        // One universal binary covers both Apple Silicon and Intel.
+        return [classifier: 'osxuniversal', pattern: '**/*.dylib']
+    }
+    if (os.contains('win')) {
+        return [classifier: arm ? 'windowsarm64' : 'windowsx86-64', pattern: '**/*.dll']
+    }
+    if (os.contains('linux')) {
+        return [classifier: arm ? 'linuxarm64' : 'linuxx86-64', pattern: '**/*.so']
+    }
+    throw new GradleException(
+            "Unsupported platform for WPILib desktop natives: os.name='${System.getProperty('os.name')}'" +
+            " os.arch='${System.getProperty('os.arch')}'. Supported: macOS, Windows (x64/arm64)," +
+            " Linux (x64/arm64).")
+}()
+
+ext.wpiNativeClassifier = wpiNative.classifier
+ext.wpiNativePattern = wpiNative.pattern
+
 subprojects {
     apply plugin: 'java'
 
@@ -9,8 +43,15 @@ subprojects {
     version = '0.1.0'
 
     repositories {
-        // WPILib ships a full offline Maven repo with its 2026 artifacts.
-        maven { url = uri('file://' + System.getProperty('user.home') + '/wpilib/2026/maven') }
+        // WPILib ships a full offline Maven repo with its artifacts. Built as a File URI rather than
+        // string-concatenated onto "file://" — on Windows the home directory is C:\Users\... and the
+        // naive concatenation produces a malformed URL that silently resolves nothing.
+        def wpilibMaven = new File(System.getProperty('user.home'), 'wpilib/2026/maven')
+        if (wpilibMaven.isDirectory()) {
+            maven { url = wpilibMaven.toURI() }
+        }
+        // The same artifacts, for machines without a local WPILib install (CI, mainly).
+        maven { url = uri('https://frcmaven.wpi.edu/artifactory/release') }
         mavenCentral()
         // maple-sim (physics-based swerve drivetrain simulation) publishes releases here per its
         // WPILib vendordep JSON (https://shenzhen-robotics-alliance.github.io/maple-sim/vendordep/maple-sim.json).

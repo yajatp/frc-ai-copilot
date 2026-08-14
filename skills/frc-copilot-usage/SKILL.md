@@ -1,11 +1,11 @@
 ---
 name: frc-copilot-usage
-description: How to use the frc-ai-copilot MCP server's 43 tools (get_guide, search_docs/search_manual/knowledge_status, profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, signal_stats/data_quality/find_peaks/rate_of_change/correlate/compare_signals/analyze_cycles, pathplanner_show/fudge/set_speed/move_marker/set_zone, auto_show/auto_swap_path, loop_check/loop_suite/loop_iterate/loop_history/loop_generate/loop_diff, mode_a/mode_a_scan, smallmodel_train/smallmodel_score, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
+description: How to use the frc-ai-copilot MCP server's 44 tools (get_guide, search_docs/search_manual/knowledge_status, profile_init/profile_show, log_info/log_entries/read_entry, ingest_log, power_analysis/can_health/battery_health/loop_timing/swerve_analysis/vision_analysis/anomaly, signal_stats/data_quality/find_peaks/rate_of_change/correlate/compare_signals/analyze_cycles, pathplanner_show/fudge/set_speed/move_marker/set_zone, auto_show/auto_swap_path, loop_check/loop_suite/loop_iterate/loop_history/loop_generate/loop_diff, mode_a/mode_a_scan, smallmodel_train/smallmodel_score, nt_status/nt_get/nt_keys) across Mode A (live/competition, between matches) and Mode B (deep post-event/off-season analysis). Load this whenever asked to analyze a match log, check battery/brownout/CAN health, propose autonomous path/speed tweaks, or verify a fix against a scenario for Team 6369 or 6773.
 ---
 
 # Using the frc-ai-copilot MCP tools
 
-The `frc-copilot` MCP server exposes 43 tools over stdio (see `docs/SETUP.md` for registration).
+The `frc-copilot` MCP server exposes 44 tools over stdio (see `docs/SETUP.md` for registration).
 This skill is about *how* to sequence them, not what each one does internally — see the tool
 descriptions themselves (`tools/list`) for exact schemas.
 
@@ -15,6 +15,7 @@ descriptions themselves (`tools/list`) for exact schemas.
 | `search_docs` | `query`, `source?`, `limit?`, `db?` | Search the offline docs index (wpilib/ctre/photonvision/pathplanner). Use before answering any API question. |
 | `search_manual` | `query`, `limit?`, `db?` | Search the indexed game manual PDF; returns the passage **and its page number**. |
 | `knowledge_status` | `db?` | What is indexed. Call this when a search returns nothing. |
+| `profile_init` | `repo`, `out?`, `team?`, `robot?`, `game?` | **Start here for a new robot.** Scan a WPILib repo and generate its profile (CAN IDs, drivetrain, PathPlanner settings). Dry-run unless `out` given. Always surface its warnings — unverified CAN IDs are guesses. |
 | `profile_show` | `profile` | Print a robot's YAML profile (CAN map, drivetrain, subsystems). |
 | `log_info` | `file` | Version/entry-count/duration summary of a `.wpilog`. |
 | `log_entries` | `file`, `filter?` | List signal names in a log, optionally substring-filtered. |
@@ -153,7 +154,7 @@ No time pressure. This is where season-long and multi-log reasoning happens.
   - When a turn passes, bank it: `loop_generate` on that log turns the fix into a standing check,
     so the same regression cannot come back silently.
 - This skill covers every tool the server currently exposes (Modules 1–6, `modes`, `smallmodel`,
-  and `live-nt` — 43 tools as of this writing). Tool count and shape will keep changing as the
+  and `live-nt` — 44 tools as of this writing). Tool count and shape will keep changing as the
   server grows; re-check `tools/list` (or `get_guide`) rather than assuming this table is
   exhaustive forever.
 

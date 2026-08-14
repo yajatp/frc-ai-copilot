@@ -1,0 +1,122 @@
+name: build
+
+# The project is meant to run on a pit laptop, and those are mostly Windows. This workflow exists
+# to prove the build is actually cross-platform on every push, rather than on the word of whoever
+# last touched the native-library wiring — that is precisely how the project became macOS-only.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # one platform failing should not hide the state of the others
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    env:
+      # Hard project rule: all Gradle state stays inside the checkout, never ~/.gradle.
+      GRADLE_USER_HOME: ${{ github.workspace }}/.gradle-home
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Runners have no WPILib install, so there is no bundled JDK and no offline Maven repo. The
+      # build falls back to frcmaven.wpi.edu for the artifacts; the JDK comes from here. Java 17 is
+      # what the project targets.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # The dashboard's web UI is built by Vite, and `build` reaches it through assemble -> distTar.
+      # Node is a build-time tool only; the shipped artifact is a JVM plus static files.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          # Only the dependency caches — not the whole GRADLE_USER_HOME, which would carry daemon
+          # and lock state across runs.
+          path: |
+            .gradle-home/caches/modules-2
+            .gradle-home/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      # bash on every platform (Git Bash on Windows) so one `./gradlew` invocation works
+      # everywhere — under PowerShell the extensionless wrapper script would not run.
+      - name: Build and test
+        shell: bash
+        run: ./gradlew build --no-daemon --stacktrace
+
+      # The point of the matrix: assert the right native libraries were selected for THIS platform.
+      # A build that silently extracted the wrong ones would still pass compilation and only fail
+      # later, at JNI load time, on someone's pit laptop.
+      - name: Verify platform-correct natives
+        shell: bash
+        run: |
+          ./gradlew :mcp-server:extractNatives --no-daemon -q
+          ls mcp-server/build/natives/
+          case "${{ runner.os }}" in
+            Linux)   ext=so ;;
+            Windows) ext=dll ;;
+            macOS)   ext=dylib ;;
+          esac
+          if ! ls mcp-server/build/natives/ | grep -q "\.$ext$"; then
+            echo "::error::no .$ext natives extracted on ${{ runner.os }} — platform detection is wrong"
+            exit 1
+          fi
+          echo "OK: .$ext natives present on ${{ runner.os }}"
+
+      # End-to-end smoke test: the server has to actually start and speak JSON-RPC. This loads the
+      # ntcore JNI natives, so it fails on exactly the platform breakage this workflow guards.
+      - name: Smoke test the MCP server
+        shell: bash
+        run: |
+          ./gradlew :mcp-server:installDist --no-daemon -q
+          launcher=mcp-server/build/install/mcp-server/bin/mcp-server
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            launcher="$launcher.bat"
+          fi
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+            | "$launcher" > tools.json
+          # Parsed, not grepped: one tool declares an argument literally named "name", so counting
+          # occurrences of the string would overcount.
+          python3 - <<'EOF'
+          import json
+          tools = []
+          for line in open("tools.json"):
+              line = line.strip()
+              if not line:
+                  continue
+              msg = json.loads(line)
+              if msg.get("id") == 2:
+                  tools = [t["name"] for t in msg["result"]["tools"]]
+          print(f"tools advertised: {len(tools)}")
+          assert len(tools) >= 40, f"expected at least 40 tools, got {len(tools)}"
+          for required in ("get_guide", "profile_init", "mode_a", "loop_iterate"):
+              assert required in tools, f"missing tool: {required}"
+          print("all required tools present")
+          EOF
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: '**/build/reports/tests/test'
+          retention-days: 7

@@ -34,6 +34,7 @@ import org.mercsmavs.frccopilot.livent.NtClient;
 import org.mercsmavs.frccopilot.modes.LogWatcher;
 import org.mercsmavs.frccopilot.modes.ModeA;
 import org.mercsmavs.frccopilot.modes.ModeAPass;
+import org.mercsmavs.frccopilot.profile.ProfileBuilder;
 import org.mercsmavs.frccopilot.profile.ProfileMapper;
 import org.mercsmavs.frccopilot.profile.RobotProfile;
 import org.mercsmavs.frccopilot.simreplay.LogDiff;
@@ -112,6 +113,24 @@ final class ToolRegistry {
                 + " robot-specific (CAN map, drivetrain, subsystems).",
                 Schemas.object(new Schemas.Prop("profile", "string", "Path to a profile .yaml", true)),
                 ToolRegistry::profileShow));
+
+        add(tools, new SimpleTool("profile_init", "START HERE for a team that has not used this tool"
+                + " before. Scans a WPILib robot repository and generates the robot profile every"
+                + " other tool reads — CAN IDs, drivetrain geometry, PathPlanner settings, vendordeps"
+                + " — so analysis is specific to THIS robot instead of generic. Writes the profile"
+                + " only when 'out' is given; otherwise it is a dry run you can review first. Always"
+                + " surface the warnings it returns: CAN IDs the code marked TODO/NOT ACCURATE are"
+                + " guesses, and acting on a wrong CAN ID sends a human to check the wrong motor.",
+                Schemas.object(
+                        new Schemas.Prop("repo", "string",
+                                "Path to the team's WPILib robot repository (the directory with"
+                                        + " src/main/java and, usually, src/main/deploy/pathplanner)", true),
+                        new Schemas.Prop("out", "string",
+                                "Where to write the profile .yaml (omit for a dry run)", false),
+                        new Schemas.Prop("team", "integer", "FRC team number, if not discoverable", false),
+                        new Schemas.Prop("robot", "string", "Robot name, e.g. 'echo'", false),
+                        new Schemas.Prop("game", "string", "Season game key (default REBUILT)", false)),
+                ToolRegistry::profileInit));
 
         add(tools, new SimpleTool("pathplanner_show", "Summarize a PathPlanner .path (waypoints,"
                 + " constraints).",
@@ -438,7 +457,7 @@ final class ToolRegistry {
 
     private static String guide(JsonNode a) {
         return """
-                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT + docs + small models; 43 tools).
+                FRC AI Copilot — MCP server (Modules 1–6 + Mode A + live NT + docs + small models; 44 tools).
 
                 Workflow:
                   0) For any API or rules question, call search_docs / search_manual FIRST. The
@@ -447,7 +466,10 @@ final class ToolRegistry {
                      every season and rules change every year — answering from memory is how you
                      hand a team a method that no longer exists or a rule that was revised.
                   1) Call profile_show on the team's robot profile so analysis is robot-specific
-                     (CAN map, drivetrain, current limit, subsystems).
+                     (CAN map, drivetrain, current limit, subsystems). If the team has no profile
+                     yet, profile_init generates one from their robot repository — that is the
+                     first thing to do for a team new to this tool. Relay its warnings verbatim;
+                     an unverified CAN ID sends someone to the wrong motor.
                   2) Use log_info / log_entries / read_entry to explore a match log.
                   3) Use power_analysis, can_health, battery_health, and loop_timing for the Mode-A
                      safety picture (brownouts, battery, CAN, loop overruns) — the 2026
@@ -566,6 +588,41 @@ final class ToolRegistry {
     private static String profileShow(JsonNode a) throws Exception {
         RobotProfile p = ProfileMapper.read(Path.of(str(a, "profile")));
         return ProfileMapper.toYaml(p);
+    }
+
+    private static String profileInit(JsonNode a) throws Exception {
+        Path repo = Path.of(str(a, "repo"));
+        if (!java.nio.file.Files.isDirectory(repo)) {
+            return "Not a directory: " + repo + ". Point 'repo' at the robot project's root — the"
+                    + " directory containing src/main/java.";
+        }
+        ProfileBuilder.Result result = ProfileBuilder.fromRepo(
+                repo,
+                a.hasNonNull("team") ? a.get("team").asInt() : null,
+                optional(a, "robot", null),
+                optional(a, "game", "REBUILT"));
+
+        StringBuilder sb = new StringBuilder();
+        String out = optional(a, "out", null);
+        if (out == null) {
+            sb.append("DRY RUN — nothing written. Pass 'out' to save this profile.\n\n");
+            sb.append(ProfileMapper.toYaml(result.profile()));
+        } else {
+            ProfileMapper.write(result.profile(), Path.of(out),
+                    "Generated by frc-ai-copilot from " + repo
+                            + "\nReview CAN IDs (especially any flagged accurate: false) before use.");
+            sb.append("Wrote profile: ").append(out).append('\n');
+        }
+
+        if (!result.warnings().isEmpty()) {
+            // These are the difference between a profile that is right and one that merely parses,
+            // so they lead rather than trail — a caller skimming the YAML would miss them otherwise.
+            sb.append("\nWARNINGS — review before trusting this profile:\n");
+            for (String w : result.warnings()) {
+                sb.append("  - ").append(w).append('\n');
+            }
+        }
+        return sb.toString();
     }
 
     private static String pathShow(JsonNode a) throws Exception {

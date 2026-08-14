@@ -18,11 +18,21 @@ Get it from WPILib's own installer (the same one you'd use for a robot project).
 ## 2. Two environment variables, every time
 
 ```bash
+# macOS / Linux
 export JAVA_HOME=~/wpilib/2026/jdk
 export GRADLE_USER_HOME="$PWD/.gradle-home"
 ```
 
-`JAVA_HOME` points at the JDK WPILib installed.
+```powershell
+# Windows (PowerShell)
+$env:JAVA_HOME = "$HOME\wpilib\2026\jdk"
+$env:GRADLE_USER_HOME = "$PWD\.gradle-home"
+```
+
+`JAVA_HOME` points at the JDK WPILib installed. It is not set in `gradle.properties` on purpose —
+that file used to pin one contributor's absolute home directory, which meant the project built on
+exactly one machine. If you'd rather not export it per shell, put `org.gradle.java.home` in your own
+`~/.gradle/gradle.properties`, which is outside the repo, rather than back in the committed one.
 
 `GRADLE_USER_HOME` is **a hard project rule, not a preference: all Gradle state stays inside the
 project folder.** Never let it fall back to `~/.gradle`. Every cache, daemon, and wrapper download
@@ -39,10 +49,16 @@ Consider putting both exports in a shell function or direnv file so you never fo
 ## 3. Build
 
 ```bash
-./gradlew build          # compile + test every module
+./gradlew build          # compile + test every module   (.\gradlew.bat on Windows)
 ```
 
 That should be green. If it is, you have a working checkout.
+
+This works on Windows, macOS and Linux. ntcore, the HAL and wpiutil are JNI libraries whose native
+binaries differ per platform, so the build picks the right classifier and file extension from
+`os.name`/`os.arch` — see `wpiNative` in the root `build.gradle`. If you touch that wiring, know that
+CI builds all three platforms on every push, which is what stops the project quietly becoming
+single-platform again the way it once did.
 
 ## 4. Three things that look broken and are not
 
@@ -101,7 +117,26 @@ printf '%s\n' \
 You should get a tool list back. `get_guide` is the tool to call first from an assistant — it
 describes the intended workflow.
 
-## 6. See it actually do something
+## 6. Generate a profile for your robot
+
+Almost every tool reads a **robot profile**, and the two checked into `profiles/` describe 6369's and
+6773's robots. If you're bringing this to a different robot, generate its profile from the repo —
+this is the on-ramp, and it is one command:
+
+```bash
+./gradlew :profile:installDist
+profile/build/install/profile/bin/profile init /path/to/robot-repo profiles/my-robot.yaml 1234 myrobot
+```
+
+It parses `*Constants.java` for CAN IDs, `settings.json` for PathPlanner configuration, the
+vendordeps for which vendors you use, and the drivetrain geometry. The equivalent MCP tool is
+`profile_init`, which defaults to a dry run so you can review before writing.
+
+Take the warnings seriously: CAN IDs the code marked `TODO` or `NOT ACCURATE` are reported as
+unverified rather than silently trusted, because a wrong CAN ID sends someone to check the wrong
+motor.
+
+## 7. See it actually do something
 
 ```bash
 # The local dashboard, against a built-in simulated robot.
@@ -158,5 +193,8 @@ Worth matching, because the codebase is consistent about it:
 ./gradlew build
 ```
 
-Keep it green and don't let the test count regress. Commit in coherent chunks, and write commit
+Keep it green and don't let the test count regress. CI ([`.github/workflows/build.yml`](.github/workflows/build.yml))
+runs the same build on Ubuntu, Windows and macOS, checks that the platform-correct natives were
+extracted, and starts the MCP server to confirm it still speaks JSON-RPC. A change that builds on
+your machine can still fail there — that is the point of it. Commit in coherent chunks, and write commit
 messages that explain the reasoning rather than restating the diff.

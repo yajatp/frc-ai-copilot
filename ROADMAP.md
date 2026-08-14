@@ -77,7 +77,7 @@ MCP server is now at **38 tools**.
 ---
 
 ## ✅ COMPLETED: PRD Part 3 spec gaps closed (2026-08-12)
-*An audit against the PRD found four gaps. All four are closed; the server is now at **43 tools**.*
+*An audit against the PRD found four gaps. All four are closed; the server is now at **44 tools**.*
 
 - ✅ **Mode A's automatic trigger** — the log-watcher daemon, recorded under Horizon 2 below.
 - ✅ **PathPlanner timing edits** — event-marker retiming and constraint zones are now editable, not

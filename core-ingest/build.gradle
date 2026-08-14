@@ -22,21 +22,23 @@ application {
 }
 
 // --- WPILib desktop native libraries (wpiutiljni, etc.) ---
-// DataLogWriter and ntcore need the JNI natives. Pull the desktop native zip and flatten the
-// .dylib files into build/natives, then point java.library.path there. Everything stays local.
+// DataLogWriter and ntcore need the JNI natives. Pull this platform's desktop native zip and flatten
+// the shared libraries into build/natives, then point java.library.path there. The classifier and
+// file extension come from rootProject.wpiNative* so this works on macOS, Windows and Linux alike.
+// Everything stays local.
 configurations {
     natives
 }
 
 dependencies {
-    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:osxuniversal@zip"
+    natives "edu.wpi.first.wpiutil:wpiutil-cpp:${wpilibVersion}:${rootProject.wpiNativeClassifier}@zip"
 }
 
 def nativesDir = layout.buildDirectory.dir('natives')
 
 def extractNatives = tasks.register('extractNatives', Copy) {
     from { configurations.natives.collect { zipTree(it) } }
-    include '**/*.dylib'
+    include rootProject.wpiNativePattern
     eachFile { it.path = it.name } // flatten so java.library.path is a single dir
     includeEmptyDirs = false
     into nativesDir
