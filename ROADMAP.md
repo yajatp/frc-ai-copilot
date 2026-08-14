@@ -133,7 +133,22 @@ MCP server is now at **38 tools**.
 ## 📦 Horizon 4 — Open-Source Distribution & Team Onboarding
 *Target: Making the copilot plug-and-play for any FRC team.*
 
-- **One-Command Setup Wizard (`copilot init`)**:
-  - Scans a team's robot repository, extracts CAN IDs and PathPlanner settings, generates their `robot_profile.json`, and installs the MCP server into VS Code / Cursor automatically.
-- **Open-Source License & Public Documentation**:
-  - Finalize permissive licensing (MIT / Apache 2.0) and prepare Chief Delphi release documentation.
+- ✅ **Cross-platform build (2026-08-13)** — this was the real blocker for any external release, and
+  it was not originally on this roadmap. The project built on exactly one machine: the Gradle wrapper
+  and `org.gradle.java.home` both pinned absolute paths in one contributor's home directory, and every
+  module hardcoded the macOS native classifier. Most FRC pit laptops run Windows. Now resolves natives
+  from `os.name`/`os.arch`, and the wrapper uses the official Gradle distribution (SHA-256 pinned).
+- ✅ **CI (2026-08-13)** — also not originally on this roadmap, and arguably more important than any
+  feature here: builds and tests on Ubuntu / Windows / macOS, asserts platform-correct natives, and
+  smoke-tests the MCP server over JSON-RPC. Without it, nothing stops the next contributor
+  re-introducing exactly the single-platform breakage above.
+- ✅ **Team on-ramp (2026-08-13)** — `profile init` already did the hard part (scan a robot repo for
+  CAN IDs, drivetrain geometry, PathPlanner settings, vendordeps). What was missing was reachability:
+  it is now the `profile_init` MCP tool and the "Start here" section of the README, rather than a
+  footnote in `profiles/README.md`.
+- ✅ **Permissive license** — MIT, already in place.
+- **Remaining before a public release**:
+  - Chief Delphi release documentation and announcement (writing, not capability).
+  - Season-dating: profiles and bundled game data assume `REBUILT` / 2026, so a public release is
+    coupled to the season rollover.
+  - The editor installers are only exercised by hand; CI covers the server, not them.
