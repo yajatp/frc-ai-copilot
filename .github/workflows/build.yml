@@ -57,9 +57,11 @@ jobs:
 
       # bash on every platform (Git Bash on Windows) so one `./gradlew` invocation works
       # everywhere — under PowerShell the extensionless wrapper script would not run.
+      # --continue so one failing module does not mask the rest. Without it a platform-specific
+      # break surfaces one module per push, turning a single fix into several round trips.
       - name: Build and test
         shell: bash
-        run: ./gradlew build --no-daemon --stacktrace
+        run: ./gradlew build --no-daemon --stacktrace --continue
 
       # The point of the matrix: assert the right native libraries were selected for THIS platform.
       # A build that silently extracted the wrong ones would still pass compilation and only fail

@@ -4,6 +4,9 @@ import edu.wpi.first.util.datalog.DataLogReader;
 import edu.wpi.first.util.datalog.DataLogRecord;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,7 +26,17 @@ public final class WpilogReader {
 
     public WpilogReader(String path) throws IOException {
         this.path = path;
-        this.reader = new DataLogReader(path);
+        // Read the bytes rather than using DataLogReader(String), which memory-maps the file and
+        // offers no way to unmap it. On Windows a mapped file cannot be deleted, moved or replaced
+        // while the mapping is alive, and nothing here ever releases it — so ingesting a log would
+        // silently lock it for the rest of the process. Java has no public unmap API, so the fix is
+        // to not map in the first place: DataLogReader also accepts a ByteBuffer.
+        //
+        // The cost is holding the log in heap instead of paging it. That is the right trade here —
+        // logs are matches, not archives, and every caller already re-reads the buffer several times
+        // (index pass, then one decode pass per signal), which is exactly the access pattern where
+        // an in-memory buffer is no worse than a mapping.
+        this.reader = new DataLogReader(ByteBuffer.wrap(Files.readAllBytes(Path.of(path))));
         if (!reader.isValid()) {
             throw new IOException("Not a valid WPILOG file: " + path);
         }
