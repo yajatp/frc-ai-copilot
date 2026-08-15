@@ -74,7 +74,7 @@ public final class SimRunner {
             int tailLines,
             java.util.Map<String, String> env)
             throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder(command);
+        ProcessBuilder pb = new ProcessBuilder(resolveExecutable(workingDir, command));
         pb.directory(workingDir.toFile());
         pb.environment().putAll(env);
         // Gradle wrappers and Java launcher scripts need a JDK on JAVA_HOME. The loop is itself
@@ -90,6 +90,43 @@ public final class SimRunner {
             p.destroyForcibly();
         }
         return new ExecResult(finished ? p.exitValue() : TIMEOUT_EXIT, tail(output, tailLines));
+    }
+
+    /**
+     * Make a relative command work the same way on every platform, by absolutizing it against the
+     * working directory when it names a file that is actually there.
+     *
+     * <p>{@code ProcessBuilder.directory()} sets the child's working directory, but it does not
+     * affect how the executable itself is located. On POSIX the JVM changes directory before exec,
+     * so {@code ./gradlew} resolves against the new one. Windows {@code CreateProcess} resolves the
+     * program name against the <em>calling</em> process's directory and PATH instead — so the same
+     * config fails with "The system cannot find the file specified" even though the script is
+     * sitting in {@code workDir}.
+     *
+     * <p>Every {@code loop.yaml} in this repo, and the documented example, uses a relative command,
+     * which is the natural thing to write when the config already declares a {@code workDir}. So
+     * this resolves it rather than asking Windows users to write absolute paths that could not then
+     * be committed.
+     *
+     * <p>Left untouched when the command is absolute, or when nothing by that name exists in
+     * {@code workDir} — a bare {@code gradle} or {@code npm} is meant to come off PATH.
+     */
+    static List<String> resolveExecutable(Path workingDir, List<String> command) {
+        if (command.isEmpty()) {
+            return command;
+        }
+        String program = command.get(0);
+        Path candidate = Path.of(program);
+        if (candidate.isAbsolute()) {
+            return command;
+        }
+        Path resolved = workingDir.resolve(candidate).normalize();
+        if (!Files.isRegularFile(resolved)) {
+            return command; // not a script in the project — let the OS search PATH
+        }
+        List<String> out = new java.util.ArrayList<>(command);
+        out.set(0, resolved.toAbsolutePath().toString());
+        return out;
     }
 
     /** Find the newest .wpilog under a directory modified at/after the given epoch millis. */
