@@ -147,8 +147,22 @@ MCP server is now at **38 tools**.
   it is now the `profile_init` MCP tool and the "Start here" section of the README, rather than a
   footnote in `profiles/README.md`.
 - ✅ **Permissive license** — MIT, already in place.
-- **Remaining before a public release**:
-  - Chief Delphi release documentation and announcement (writing, not capability).
-  - Season-dating: profiles and bundled game data assume `REBUILT` / 2026, so a public release is
-    coupled to the season rollover.
-  - The editor installers are only exercised by hand; CI covers the server, not them.
+- ✅ **Season-dating decoupled (2026-08-14)** — `GameData` owns a single registry of bundled seasons
+  and everything derives from it; adding next season is one entry. The stale-AprilTag-layout check
+  compares the year in the layout name against the profile's season instead of matching this year's
+  game name, so it survives the rollover. An unknown game gets no season and a warning rather than
+  being silently dated to the current year.
+- ✅ **Editor installers fixed and covered (2026-08-14)** — all three JS installers had the same two
+  Windows bugs (invoking `./gradlew`, registering the extensionless launcher), triplicated. Shared
+  logic now lives in `scripts/mcp-install.js`, and CI runs them against a throwaway HOME and asserts
+  the command they register actually serves tools.
+- ✅ **Chief Delphi announcement drafted (2026-08-14)** — [docs/RELEASE-ANNOUNCEMENT.md](docs/RELEASE-ANNOUNCEMENT.md),
+  including an honest limitations section and a pre-flight checklist.
+- **Remaining before a public release** — all judgement calls rather than engineering:
+  - **Decide the acknowledgments.** Prior-art and inspiration credits were removed from the README on
+    purpose, with the intent to restore transparency before any external release. This is that
+    release, so the decision is now due — see the announcement draft.
+  - Remove `docs/competitive-intelligence.md` from anything public; it is internal research and reads
+    badly out of context.
+  - Have someone follow `CONTRIBUTING.md` on Windows start to finish. CI proves the build works
+    there; it does not prove the instructions are followable.
