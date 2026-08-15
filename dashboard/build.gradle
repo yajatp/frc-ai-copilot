@@ -63,9 +63,13 @@ tasks.named('run') {
 def webDir = file('web')
 def webDist = file('web/dist')
 
+// On Windows npm is a .cmd shim, which Gradle's Exec cannot launch as a bare `npm` — there is no
+// shell doing PATHEXT resolution for it. Naming it explicitly is the whole fix.
+def npmCommand = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'npm.cmd' : 'npm'
+
 def npmInstall = tasks.register('npmInstall', Exec) {
     workingDir webDir
-    commandLine 'npm', 'install', '--no-audit', '--no-fund'
+    commandLine npmCommand, 'install', '--no-audit', '--no-fund'
     inputs.file(file('web/package.json'))
     outputs.dir(file('web/node_modules'))
     onlyIf { webDir.exists() }
@@ -74,7 +78,7 @@ def npmInstall = tasks.register('npmInstall', Exec) {
 def webBuild = tasks.register('webBuild', Exec) {
     dependsOn npmInstall
     workingDir webDir
-    commandLine 'npm', 'run', 'build'
+    commandLine npmCommand, 'run', 'build'
     inputs.dir(file('web/src'))
     inputs.file(file('web/index.html'))
     inputs.file(file('web/vite.config.ts'))

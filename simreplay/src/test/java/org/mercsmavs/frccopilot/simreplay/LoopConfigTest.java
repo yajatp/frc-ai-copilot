@@ -40,8 +40,11 @@ class LoopConfigTest {
     void substitutesTheLogPlaceholderIntoTheRunCommand(@TempDir Path tmp) throws Exception {
         LoopConfig config = LoopConfig.load(write(tmp.resolve("robot"), MINIMAL));
         assertTrue(config.producesLogPath());
-        List<String> argv = config.runCommand(Path.of("/logs/iteration-007.wpilog"));
-        assertEquals(List.of("./sim", "/logs/iteration-007.wpilog"), argv);
+        // The substituted value is absolutized, so build the expectation the same way rather than
+        // hardcoding a POSIX path — on Windows this is a drive-lettered, backslashed path.
+        Path log = Path.of("/logs/iteration-007.wpilog");
+        List<String> argv = config.runCommand(log);
+        assertEquals(List.of("./sim", log.toAbsolutePath().toString()), argv);
     }
 
     @Test
@@ -52,9 +55,12 @@ class LoopConfigTest {
                 env:
                   GRADLE_USER_HOME: "{workDir}/.gradle-home"
                 """));
+        // Compared as a path, not a string: the config joins the expanded {workDir} to the rest
+        // with a forward slash, which is a valid path on Windows but not the string the platform
+        // separator would produce.
         assertEquals(
-                tmp.toAbsolutePath().resolve(".gradle-home").toString(),
-                config.resolvedEnv().get("GRADLE_USER_HOME"));
+                tmp.toAbsolutePath().resolve(".gradle-home"),
+                Path.of(config.resolvedEnv().get("GRADLE_USER_HOME")).normalize());
     }
 
     @Test

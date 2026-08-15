@@ -19,33 +19,68 @@ import org.mercsmavs.frccopilot.ingest.WpilogReader;
  */
 class LoopRunnerTest {
 
+    private static final boolean WINDOWS =
+            System.getProperty("os.name").toLowerCase().contains("win");
+    private static final String RUN_SCRIPT = WINDOWS ? "run.bat" : "run.sh";
+    private static final String BUILD_SCRIPT = WINDOWS ? "build.bat" : "build.sh";
+
+    /** A "robot" that copies a prepared log to wherever the loop asks for it. */
+    private static void writeRunScript(Path dir, Path logToProduce) throws Exception {
+        String source = logToProduce.toAbsolutePath().toString();
+        Path run = dir.resolve(RUN_SCRIPT);
+        Files.writeString(run, WINDOWS
+                // %~1 strips the quotes the loop may pass around the destination path.
+                ? "@echo off\r\ncopy /Y \"" + source + "\" \"%~1\" >nul\r\n"
+                : "#!/bin/sh\ncp '" + source + "' \"$1\"\n");
+        run.toFile().setExecutable(true);
+    }
+
+    /** A robot that exits cleanly but writes no log. */
+    private static void writeSilentRunScript(Path dir) throws Exception {
+        Path run = dir.resolve(RUN_SCRIPT);
+        Files.writeString(run, WINDOWS ? "@echo off\r\nexit /b 0\r\n" : "#!/bin/sh\nexit 0\n");
+        run.toFile().setExecutable(true);
+    }
+
     /**
      * Write a fake robot: a script that copies a prepared log to wherever the loop asks for it, and
      * whose "build" step succeeds or fails on demand.
+     *
+     * <p>Batch files on Windows, shell scripts elsewhere. The loop runs whatever argv a project's
+     * {@code loop.yaml} names, so a real Windows robot project would say {@code gradlew.bat} — using
+     * the platform's own script format here keeps these tests exercising the loop on Windows rather
+     * than skipping it, which is where the interesting failures were.
      */
     private static Path project(Path dir, Path logToProduce, boolean buildSucceeds) throws Exception {
         Files.createDirectories(dir.resolve("src"));
         Files.writeString(dir.resolve("src/Robot.java"), "class Robot {}");
 
-        Path run = dir.resolve("run.sh");
-        Files.writeString(run, "#!/bin/sh\ncp '" + logToProduce.toAbsolutePath() + "' \"$1\"\n");
-        run.toFile().setExecutable(true);
+        String buildName = BUILD_SCRIPT;
 
-        Path build = dir.resolve("build.sh");
-        Files.writeString(build, buildSucceeds
-                ? "#!/bin/sh\nexit 0\n"
-                : "#!/bin/sh\necho 'Robot.java:3: error: cannot find symbol' >&2\nexit 1\n");
+        writeRunScript(dir, logToProduce);
+
+        Path build = dir.resolve(buildName);
+        Files.writeString(build, WINDOWS
+                ? (buildSucceeds
+                        ? "@echo off\r\nexit /b 0\r\n"
+                        : "@echo off\r\necho Robot.java:3: error: cannot find symbol 1>&2\r\nexit /b 1\r\n")
+                : (buildSucceeds
+                        ? "#!/bin/sh\nexit 0\n"
+                        : "#!/bin/sh\necho 'Robot.java:3: error: cannot find symbol' >&2\nexit 1\n"));
         build.toFile().setExecutable(true);
 
         Files.writeString(dir.resolve(LoopConfig.FILE_NAME), """
                 name: fake-robot
-                build: ["./build.sh"]
-                run: ["./run.sh", "{log}"]
+                build: ["%s"]
+                run: ["%s", "{log}"]
                 scenarioDir: scenarios
                 baseline: .loop/baseline.wpilog
                 sources: ["src"]
                 timeoutSeconds: 60
-                """);
+                """.formatted(
+                        // Relative, so the loop resolves them against workDir the way a real project does.
+                        (WINDOWS ? "" : "./") + buildName,
+                        (WINDOWS ? "" : "./") + RUN_SCRIPT));
         return dir.resolve(LoopConfig.FILE_NAME);
     }
 
@@ -129,8 +164,7 @@ class LoopRunnerTest {
         // "Fix" the robot: edit the source, and let the run now produce a scoring log.
         Files.writeString(dir.resolve("src/Robot.java"), "class Robot { int fixed; }");
         Path good = TestLogs.good(tmp.resolve("good.wpilog"));
-        Files.writeString(dir.resolve("run.sh"),
-                "#!/bin/sh\ncp '" + good.toAbsolutePath() + "' \"$1\"\n");
+        writeRunScript(dir, good);
 
         LoopRunner.IterationReport second = LoopRunner.iterate(LoopConfig.load(config), null);
 
@@ -170,7 +204,7 @@ class LoopRunnerTest {
         Path config = project(dir, TestLogs.good(tmp.resolve("good.wpilog")), true);
         scenario(dir, "auto_scores", 5);
         // A robot that exits cleanly but never writes a log — logging left disabled, typically.
-        Files.writeString(dir.resolve("run.sh"), "#!/bin/sh\nexit 0\n");
+        writeSilentRunScript(dir);
 
         LoopRunner.IterationReport report = LoopRunner.iterate(LoopConfig.load(config), null);
         assertEquals(LoopRunner.Outcome.NO_LOG, report.outcome());

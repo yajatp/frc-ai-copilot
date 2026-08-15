@@ -37,11 +37,14 @@ class ReplayConfigTest {
         assertTrue(config.consumesInputLog());
         assertTrue(config.producesLogPath(), "a replay pass still writes an output log");
 
-        List<String> argv = config.runCommand(Path.of("/logs/iteration-007.wpilog"));
+        // Both substituted paths are absolutized, so build the expectations the same way — a
+        // hardcoded POSIX path fails on Windows for reasons that have nothing to do with replay.
+        Path out = Path.of("/logs/iteration-007.wpilog");
+        List<String> argv = config.runCommand(out);
         assertEquals(
                 List.of("./replay",
-                        tmp.resolve("robot/logs/match10.wpilog").toString(),
-                        "/logs/iteration-007.wpilog"),
+                        tmp.resolve("robot/logs/match10.wpilog").toAbsolutePath().toString(),
+                        out.toAbsolutePath().toString()),
                 argv);
     }
 
@@ -49,9 +52,12 @@ class ReplayConfigTest {
     void aPerTurnInputLogOverridesTheConfiguredOne(@TempDir Path tmp) throws Exception {
         // This is what lets one config replay a season of matches instead of the one it names.
         LoopConfig config = LoopConfig.load(write(tmp.resolve("robot"), REPLAY));
-        List<String> argv = config.runCommand(
-                Path.of("/logs/out.wpilog"), Path.of("/matches/qm42.wpilog"));
-        assertEquals(List.of("./replay", "/matches/qm42.wpilog", "/logs/out.wpilog"), argv);
+        Path out = Path.of("/logs/out.wpilog");
+        Path match = Path.of("/matches/qm42.wpilog");
+        List<String> argv = config.runCommand(out, match);
+        assertEquals(
+                List.of("./replay", match.toAbsolutePath().toString(), out.toAbsolutePath().toString()),
+                argv);
     }
 
     @Test

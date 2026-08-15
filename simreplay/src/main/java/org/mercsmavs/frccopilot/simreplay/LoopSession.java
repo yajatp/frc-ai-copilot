@@ -234,12 +234,34 @@ public final class LoopSession {
                 || n.endsWith(".auto");
     }
 
+    /**
+     * A source file's key in the journal: its path relative to the project, always with forward
+     * slashes.
+     *
+     * <p>Normalized rather than using the platform separator because these keys are persisted. A
+     * journal written on Windows would otherwise record {@code src\Robot.java} where one written on
+     * macOS records {@code src/Robot.java}, so the same file would read as removed-and-added the
+     * first time a teammate on the other platform ran an iteration — and "which files changed since
+     * last time" is the whole point of the fingerprint.
+     */
     private static String relativize(Path base, Path p) {
         try {
-            return base.toAbsolutePath().relativize(p.toAbsolutePath()).toString();
+            Path relative = base.toAbsolutePath().relativize(p.toAbsolutePath());
+            return toPosix(relative);
         } catch (IllegalArgumentException e) {
-            return p.toString();
+            return toPosix(p);
         }
+    }
+
+    private static String toPosix(Path p) {
+        StringBuilder sb = new StringBuilder();
+        for (Path part : p) {
+            if (sb.length() > 0) {
+                sb.append('/');
+            }
+            sb.append(part);
+        }
+        return sb.toString();
     }
 
     private static String hashOf(Path p) {
