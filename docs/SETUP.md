@@ -5,29 +5,61 @@ This project ships as a Java multi-module Gradle build (`core-ingest`, `profile`
 (`org.mercsmavs.frccopilot.mcp.McpServer`). This doc covers building it and wiring it into
 Claude Code as an MCP server.
 
+## Supported platforms
+
+**Linux, macOS and Windows**, on x64 or ARM. ntcore, the HAL and wpiutil are JNI libraries whose
+native binaries differ per platform; the build selects the right ones from `os.name`/`os.arch` (see
+`wpiNative` in the root `build.gradle`), so there is nothing to configure. CI builds and tests all
+three on every push.
+
+| | JDK | WPILib Maven repo | Launcher |
+|---|---|---|---|
+| Linux | `~/wpilib/2026/jdk` | `~/wpilib/2026/maven` | `bin/mcp-server` |
+| macOS | `~/wpilib/2026/jdk` | `~/wpilib/2026/maven` | `bin/mcp-server` |
+| Windows | `%USERPROFILE%\wpilib\2026\jdk` | `%USERPROFILE%\wpilib\2026\maven` | `bin\mcp-server.bat` |
+
+On Windows, WPILib's installer may place things under the shared **Public** profile
+(`C:\Users\Public\wpilib\2026`) instead of your own — the editor installers check both.
+
 ## Prerequisites
 
-- **The WPILib 2026 install.** Not just any JDK — the build depends on WPILib's bundled JDK and
-  its offline Maven repo (`~/wpilib/2026/maven`, referenced directly in the root `build.gradle`)
-  for `DataLogReader`, `wpimath`, `ntcore`, and the AdvantageKit/CTRE/PathPlanner artifacts. Install
-  WPILib 2026 first (the standard WPILib installer) if you haven't.
-- The JDK lives at `~/wpilib/2026/jdk` (JDK 17). `gradle.properties` already pins
-  `org.gradle.java.home` to this path for the Gradle daemon itself — but the **installed launcher
-  script** (`bin/mcp-server`) resolves Java independently at run time, so anything that spawns it
-  (like Claude Code) needs `JAVA_HOME` set explicitly. See the `.mcp.json` example below.
+- **The WPILib 2026 install.** Not just any JDK — the build depends on WPILib's bundled JDK and its
+  offline Maven repo (`~/wpilib/2026/maven`) for `DataLogReader`, `wpimath`, `ntcore`, and the
+  CTRE/PathPlanner artifacts. Install WPILib 2026 first (the standard WPILib installer).
+  - If the local repo is absent, the build falls back to `frcmaven.wpi.edu` for the same artifacts,
+    which is how CI builds with no WPILib install at all. That path needs network.
+- The JDK lives at `~/wpilib/2026/jdk` (JDK 17), and the build takes it from **`JAVA_HOME`**.
+  `gradle.properties` deliberately does *not* pin `org.gradle.java.home`: it used to hardcode one
+  contributor's absolute home directory, which meant the project built on exactly one machine. If
+  you would rather not export it per shell, set `org.gradle.java.home` in your own
+  `~/.gradle/gradle.properties` — a user-level file outside the repo — rather than in the committed
+  one.
+- The **installed launcher script** resolves Java independently at run time, so anything that spawns
+  it (like Claude Code) needs `JAVA_HOME` set explicitly. See the `.mcp.json` example below.
 
 ## Build
 
-Always export `GRADLE_USER_HOME` first so Gradle's cache/wrapper/daemon state stays inside the
-project instead of `~/.gradle` — this project is meant to be fully self-contained per-checkout:
+Always set `GRADLE_USER_HOME` first so Gradle's cache/wrapper/daemon state stays inside the project
+instead of `~/.gradle` — this project is meant to be fully self-contained per-checkout:
 
 ```bash
+# Linux / macOS
 cd /path/to/frc-ai-copilot
 export JAVA_HOME=~/wpilib/2026/jdk
 export GRADLE_USER_HOME="$PWD/.gradle-home"
 
 ./gradlew build                    # compile + test every module
 ./gradlew :mcp-server:installDist  # build the MCP server's runnable distribution
+```
+
+```powershell
+# Windows (PowerShell)
+cd C:\path\to\frc-ai-copilot
+$env:JAVA_HOME = "$HOME\wpilib\2026\jdk"
+$env:GRADLE_USER_HOME = "$PWD\.gradle-home"
+
+.\gradlew.bat build
+.\gradlew.bat :mcp-server:installDist
 ```
 
 `installDist` (the Gradle `application` plugin task) produces:
@@ -104,17 +136,41 @@ you need it most.
 
 ## Registering with Claude Code
 
+**The quickest way is not to hand-write this at all.** There is an installer per editor that builds
+the server and registers it for you, with the platform-correct launcher path already filled in:
+
+```bash
+cd cursor-integration      && node install.js   # or codex-integration, antigravity-integration
+```
+
+For VS Code, use the extension in `vscode-extension/`. The rest of this section is what those
+installers do, for Claude Code or if you would rather configure it by hand.
+
 MCP servers are configured via a `.mcp.json` file. For a project used by both teams, put it at
 the **project root** so it's shared by anyone who checks out the repo:
 
-`.mcp.json`:
+`.mcp.json` (Linux / macOS — substitute your own checkout and home directory):
 ```json
 {
   "mcpServers": {
     "frc-copilot": {
-      "command": "/Users/yajatparmar/code/6369/frc ai copilot/mcp-server/build/install/mcp-server/bin/mcp-server",
+      "command": "/home/you/code/frc-ai-copilot/mcp-server/build/install/mcp-server/bin/mcp-server",
       "env": {
-        "JAVA_HOME": "/Users/yajatparmar/wpilib/2026/jdk"
+        "JAVA_HOME": "/home/you/wpilib/2026/jdk"
+      }
+    }
+  }
+}
+```
+
+On Windows, both paths change — the launcher is the `.bat`, and JSON needs the backslashes escaped:
+```json
+{
+  "mcpServers": {
+    "frc-copilot": {
+      "command": "C:\\Users\\you\\code\\frc-ai-copilot\\mcp-server\\build\\install\\mcp-server\\bin\\mcp-server.bat",
+      "env": {
+        "JAVA_HOME": "C:\\Users\\you\\wpilib\\2026\\jdk"
       }
     }
   }
@@ -123,10 +179,9 @@ the **project root** so it's shared by anyone who checks out the repo:
 
 Notes on this config:
 - **Use an absolute path for `command`.** Claude Code spawns the process directly (no shell
-  expansion), so `~` and relative paths won't resolve — write out the real path to
-  `bin/mcp-server` inside the `installDist` output. Adjust the `/Users/yajatparmar/...` prefix to
-  wherever the repo is actually checked out on each machine (6369's and 6773's checkouts will
-  differ).
+  expansion), so `~`, `%USERPROFILE%` and relative paths won't resolve — write out the real path to
+  the launcher inside the `installDist` output. Every machine's checkout differs, so this is the one
+  value nobody can copy verbatim.
 - **`JAVA_HOME` is required in `env`**, not optional. The generated launcher script is a thin
   wrapper that execs `$JAVA_HOME/bin/java` (falling back to whatever `java` is on `PATH`
   otherwise). Claude Code launches MCP servers with a minimal environment, so unless `JAVA_HOME`
@@ -135,8 +190,8 @@ Notes on this config:
 - Alternatively, register the same server from the CLI, which writes an equivalent config:
   ```bash
   claude mcp add frc-copilot \
-    --env JAVA_HOME=/Users/yajatparmar/wpilib/2026/jdk \
-    -- "/Users/yajatparmar/code/6369/frc ai copilot/mcp-server/build/install/mcp-server/bin/mcp-server"
+    --env JAVA_HOME="$HOME/wpilib/2026/jdk" \
+    -- "$PWD/mcp-server/build/install/mcp-server/bin/mcp-server"
   ```
   Add `--scope user` if you want it available across every project on your machine instead of
   just this one.
@@ -167,9 +222,9 @@ server, log to stderr, not stdout, or you'll corrupt the protocol stream.
 3. Ask Claude Code to call the `get_guide` tool (or just ask a question that would naturally use
    it, e.g. "what does the FRC copilot server do?"). You should get back the workflow text
    embedded in `ToolRegistry.guide()`.
-4. Confirm the full tool list is visible: `log_info`, `log_entries`, `read_entry`, `ingest_log`,
-   `power_analysis`, `can_health`, `profile_show`, `pathplanner_show`, `pathplanner_fudge`,
-   `pathplanner_set_speed`.
+4. Confirm the tool list is visible — 44 tools at the time of writing, including `profile_init`,
+   `log_info`, `power_analysis`, `mode_a`, `pathplanner_show`, `loop_iterate` and `search_docs`.
+   Re-check `tools/list` rather than trusting this list; it grows.
 
 **If the server doesn't show up / tools are missing:**
 - Double check `command` is an absolute path and the file is executable (`chmod +x` if needed —
@@ -188,3 +243,5 @@ server, log to stderr, not stdout, or you'll corrupt the protocol stream.
 - `skills/frc-copilot-usage/SKILL.md` — how to actually use the MCP tools (Mode A / Mode B).
 - `skills/frc-scaffold/SKILL.md` — scaffolding a new subsystem consistent with a team's profile.
 - `profiles/README.md` — how robot profiles are generated/regenerated (`profile init`).
+- `../CONTRIBUTING.md` — the walkthrough for a teammate setting this up for the first time.
+- `CLOSED-LOOP.md` — the edit/build/run/verify/iterate cycle, sim and replay.

@@ -1,8 +1,6 @@
 ---
 name: "auto_scores_and_drives"
-description: "Generated from a known-good run (/private/tmp/claude-501/-Users-yajatparmar-code-6369-frc-ai-copilot/bbb40d16-037d-4572-94ef-74102573823c/scratchpad/logs/good.wpilog)\
-  \ with 10% tolerance, scoped to /Robot/State == AUTO. Review the thresholds before\
-  \ banking this — they encode one run, not a spec."
+description: "Generated from a known-good headless sim run with 10% tolerance, scoped to /Robot/State == AUTO. Review the thresholds before banking this — they encode one run, not a spec."
 assertions:
 - signal: "/Autonomous/BallsScored"
   aggregation: "LAST"

@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "TEMPLATE — copy to .mcp.json at the project root and replace both paths.",
+    "Easier: run the installer for your editor (cursor-integration/, codex-integration/,",
+    "antigravity-integration/, or the vscode-extension), which fills these in for you.",
+    "'command' must be ABSOLUTE: the launcher is spawned directly, with no shell expansion,",
+    "so ~ and %USERPROFILE% do not resolve. On Windows use bin\\mcp-server.bat.",
+    "See docs/SETUP.md."
+  ],
+  "mcpServers": {
+    "frc-ai-copilot": {
+      "command": "/absolute/path/to/frc-ai-copilot/mcp-server/build/install/mcp-server/bin/mcp-server",
+      "args": [],
+      "env": {
+        "JAVA_HOME": "/absolute/path/to/wpilib/2026/jdk"
+      }
+    }
+  }
+}
