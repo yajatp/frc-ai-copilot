@@ -129,7 +129,8 @@ final class ToolRegistry {
                                 "Where to write the profile .yaml (omit for a dry run)", false),
                         new Schemas.Prop("team", "integer", "FRC team number, if not discoverable", false),
                         new Schemas.Prop("robot", "string", "Robot name, e.g. 'echo'", false),
-                        new Schemas.Prop("game", "string", "Season game key (default REBUILT)", false)),
+                        new Schemas.Prop("game", "string",
+                                "Season game key; defaults to the current season", false)),
                 ToolRegistry::profileInit));
 
         add(tools, new SimpleTool("pathplanner_show", "Summarize a PathPlanner .path (waypoints,"
@@ -600,7 +601,7 @@ final class ToolRegistry {
                 repo,
                 a.hasNonNull("team") ? a.get("team").asInt() : null,
                 optional(a, "robot", null),
-                optional(a, "game", "REBUILT"));
+                optional(a, "game", org.mercsmavs.frccopilot.profile.GameData.defaultGame()));
 
         StringBuilder sb = new StringBuilder();
         String out = optional(a, "out", null);

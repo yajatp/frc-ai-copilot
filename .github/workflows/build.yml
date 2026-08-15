@@ -113,6 +113,51 @@ jobs:
           print("all required tools present")
           EOF
 
+      # The editor installers were the last thing here with no automated coverage, and they had
+      # exactly the Windows bugs this workflow exists to catch: invoking ./gradlew (absent on
+      # Windows) and registering the extensionless launcher instead of the .bat. Run them against a
+      # throwaway HOME so CI never touches the runner's real editor config, then assert the command
+      # they registered actually starts and serves tools.
+      - name: Editor installers register a working server
+        shell: bash
+        run: |
+          fake="$(pwd)/.ci-home"
+          rm -rf "$fake" && mkdir -p "$fake/.cursor"
+          # Seed an unrelated server: installing must merge, never clobber a user's other entries.
+          echo '{"mcpServers":{"unrelated":{"command":"/bin/true","args":[]}}}' > "$fake/.cursor/mcp.json"
+
+          for dir in cursor-integration antigravity-integration; do
+            echo "--- $dir"
+            ( cd "$dir" && HOME="$fake" USERPROFILE="$fake" node install.js )
+          done
+
+          python3 - "$fake" <<'EOF'
+          import json, subprocess, sys, os
+          fake = sys.argv[1]
+          cfg = json.load(open(os.path.join(fake, ".cursor", "mcp.json")))
+          servers = cfg["mcpServers"]
+          assert "unrelated" in servers, "installer clobbered an existing server entry"
+          command = servers["frc-ai-copilot"]["command"]
+          assert os.path.exists(command), f"registered a launcher that does not exist: {command}"
+
+          requests = (
+              '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n'
+              '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n'
+          )
+          out = subprocess.run([command], input=requests, capture_output=True, text=True, timeout=180).stdout
+          tools = []
+          for line in out.splitlines():
+              line = line.strip()
+              if not line:
+                  continue
+              msg = json.loads(line)
+              if msg.get("id") == 2:
+                  tools = msg["result"]["tools"]
+          assert len(tools) >= 40, f"registered command served {len(tools)} tools"
+          print(f"installer-registered command works: {len(tools)} tools")
+          EOF
+          rm -rf "$fake"
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4

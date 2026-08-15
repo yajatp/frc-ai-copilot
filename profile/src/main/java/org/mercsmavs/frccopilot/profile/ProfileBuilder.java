@@ -23,6 +23,8 @@ public final class ProfileBuilder {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Pattern APRILTAG = Pattern.compile("AprilTagFields\\.(\\w+)");
+    /** The season year WPILib embeds in a field-layout constant, e.g. {@code k2025ReefscapeWelded}. */
+    private static final Pattern LAYOUT_YEAR = Pattern.compile("(20\\d{2})");
 
     /** Result of a build: the profile plus any advisory warnings for the reviewer. */
     public record Result(RobotProfile profile, List<String> warnings) {}
@@ -108,23 +110,50 @@ public final class ProfileBuilder {
 
     private static FieldProfile readField(Path repoRoot, String game, List<String> warnings)
             throws IOException {
+        Integer season = GameData.seasonForGame(game).orElse(null);
+        if (game != null && season == null) {
+            warnings.add(
+                    "Unknown game '" + game + "' — no bundled field data, so the profile has no season."
+                            + " Known: " + String.join(", ", GameData.knownGames()) + ".");
+        }
+
         Path constants = repoRoot.resolve("src/main/java/frc/robot/Constants.java");
         String aprilTagField = null;
         if (Files.exists(constants)) {
             Matcher m = APRILTAG.matcher(Files.readString(constants));
             if (m.find()) {
                 aprilTagField = m.group(1);
-                // 2026 is REBUILT; flag if the code still loads a prior-year field layout.
-                if (game != null && game.equalsIgnoreCase("REBUILT")
-                        && !aprilTagField.toLowerCase().contains("rebuilt")) {
-                    warnings.add(
-                            "AprilTag layout in code is '" + aprilTagField
-                                    + "' but game is REBUILT — confirm the correct 2026 field data.");
-                }
+                warnStaleFieldLayout(aprilTagField, game, season, warnings);
             }
         }
-        Integer season = game != null && game.equalsIgnoreCase("REBUILT") ? 2026 : null;
         return new FieldProfile(game, season, aprilTagField, null, null);
+    }
+
+    /**
+     * Flag robot code still loading a prior season's AprilTag layout — a common and expensive
+     * carry-over at the start of a build season, since every vision pose lands on last year's field.
+     *
+     * <p>Detected by comparing the year embedded in the layout name (WPILib names them like
+     * {@code k2025ReefscapeWelded}) against the profile's season, rather than by matching this
+     * season's game name. The year comparison keeps working next season with no code change; the
+     * name match had to be edited every year, which is exactly the kind of thing that gets forgotten.
+     */
+    private static void warnStaleFieldLayout(
+            String aprilTagField, String game, Integer season, List<String> warnings) {
+        if (season == null) {
+            return;
+        }
+        Matcher year = LAYOUT_YEAR.matcher(aprilTagField);
+        if (!year.find()) {
+            return; // no year in the name; nothing reliable to compare
+        }
+        int layoutSeason = Integer.parseInt(year.group(1));
+        if (layoutSeason != season) {
+            warnings.add(
+                    "AprilTag layout in code is '" + aprilTagField + "' (" + layoutSeason
+                            + ") but this profile is " + season + " (" + game + ") — vision poses"
+                            + " would be resolved against the wrong field. Confirm the layout.");
+        }
     }
 
     private ProfileBuilder() {}
