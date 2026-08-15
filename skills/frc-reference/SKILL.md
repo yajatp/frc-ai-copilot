@@ -1,12 +1,12 @@
 ---
 name: frc-reference
-description: FRC robot-code conventions used by Team 6369 (Echo) and Team 6773 (AlphaBot) — the FRC 6328 AdvantageKit IO-layer pattern, CTRE Phoenix 6, PathPlanner, AutoLog, LoggedTunableNumber, the REAL/SIM/REPLAY switch, and a plan-review checklist. Load this before writing, editing, or reviewing any robot Java code (subsystems, commands, RobotContainer, autos) so changes match the team's actual structure instead of generic WPILib advice.
+description: FRC robot-code conventions used by Team 6369 (Echo) and Team 6773 (AlphaBot) — the AdvantageKit IO-layer pattern, CTRE Phoenix 6, PathPlanner, AutoLog, LoggedTunableNumber, the REAL/SIM/REPLAY switch, and a plan-review checklist. Load this before writing, editing, or reviewing any robot Java code (subsystems, commands, RobotContainer, autos) so changes match the team's actual structure instead of generic WPILib advice.
 ---
 
-# FRC reference conventions (6328 / AdvantageKit / CTRE / PathPlanner)
+# FRC reference conventions (AdvantageKit / CTRE / PathPlanner)
 
-Both 6369's "Echo" and 6773's "AlphaBot" are forked from **FRC 6328's** AdvantageKit swerve
-template (GPLv3 header on the template files). Stack: **AdvantageKit** (`org.littletonrobotics.akit`,
+Both 6369's "Echo" and 6773's "AlphaBot" are built on the upstream **AdvantageKit** swerve
+template (which carries a GPLv3 header on the template files — keep it). Stack: **AdvantageKit** (`org.littletonrobotics.akit`,
 `@AutoLog`/`Logger`), **CTRE Phoenix 6** (TalonFX, Pigeon2 — 6369 is pure CTRE; 6773 mixes in
 **REVLib**/SparkMax), **PathPlanner** (autonomous paths/autos + `LocalADStarAK` on-the-fly
 pathfinding), Limelight vision, JUnit 5. Package root is `frc.robot`; mechanisms live under
@@ -136,7 +136,7 @@ Under `src/main/deploy/pathplanner/`:
 - `autos/*.auto` — compose named paths + commands into a full autonomous routine (what the driver
   station auto chooser actually selects).
 - `navgrid.json` — the obstacle grid `LocalADStarAK` pathfinds over.
-- `frc.robot.util.LocalADStarAK` — 6328's AdvantageKit-aware wrapper around PathPlanner's
+- `frc.robot.util.LocalADStarAK` — the AdvantageKit-aware wrapper around PathPlanner's
   `LocalADStar` on-the-fly pathfinder, so dynamic pathfinding still logs deterministically for
   replay.
 

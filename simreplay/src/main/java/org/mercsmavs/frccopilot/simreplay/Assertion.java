@@ -10,7 +10,7 @@ import org.mercsmavs.frccopilot.ingest.WpilogReader;
  * window) and compare it to a threshold.
  *
  * <p>Chosen over a full DSL (per the plan): lightweight, auditable, and enough to express the
- * 254-style checks — "auto scores non-zero" ({@code MAX /Auto/BallsScored > 0}), "arm settles"
+ * The checks that matter in practice — "auto scores non-zero" ({@code MAX /Auto/BallsScored > 0}), "arm settles"
  * ({@code LAST error < 0.05}), "no tip" ({@code MAX pitch < threshold}).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)

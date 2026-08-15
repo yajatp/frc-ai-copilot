@@ -86,8 +86,7 @@ check without a `loop.yaml`, but it has no diagnosis, no baseline diff, and no j
 ## maple-sim (physics/collision fidelity)
 
 WPILib's built-in `ModuleIOSim` is kinematic. For bump/trench traversal or game-piece
-collisions (254's use case), add [maple-sim](https://github.com/Shenzhen-Robotics-Alliance/maple-sim)
-(MIT) as a vendordep and back the drive/IO sim with its `SwerveDriveSimulation`. It's an
+collisions, add **maple-sim** (MIT) as a vendordep and back the drive/IO sim with its `SwerveDriveSimulation`. It's an
 opt-in upgrade per robot, gated on need — not required for the loop to function.
 
 `example-robot` demonstrates this concretely: `DriveSubsystem` wraps a real
@@ -107,7 +106,8 @@ explicitly or you'll hit `NoClassDefFoundError` at first use).
 
 ## big-AI-small-AI
 
-When a decision is better learned than coded (254's "when to stage balls"), use the
+When a decision is better learned than coded (e.g. "when is the right moment to stage game
+pieces"), use the
 `smallmodel` module: hand-label ~30 examples (timestamp + feature values + a 0/1 label)
 from synced video/logs, `LogisticModel.train(...)`, check `evaluate(...)` precision/recall
 in replay, then deploy the tiny model. The larger agent orchestrates the labeling and

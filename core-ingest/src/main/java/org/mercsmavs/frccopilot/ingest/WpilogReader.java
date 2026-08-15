@@ -16,7 +16,7 @@ import java.util.Map;
  * Thin wrapper around WPILib's official {@link DataLogReader}.
  *
  * <p>We deliberately do NOT reimplement the .wpilog binary format — using WPILib's own reader
- * guarantees compatibility with whatever the robot wrote (this mirrors wpilog-mcp's correct call).
+ * guarantees compatibility with whatever the robot actually wrote.
  * A {@code DataLogReader} is {@link Iterable}; iterating produces a fresh cursor each time, so the
  * multi-pass approach here (index pass, then decode pass) is safe.
  */

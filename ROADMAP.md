@@ -4,17 +4,18 @@ This document outlines the planned future expansion horizons for the **FRC AI Co
 
 ---
 
-## ✅ COMPLETED: Ecosystem Competitor & Tool Research (2026-08-02)
-*Deep-dive research completed across 8 FRC AI tools. Full report: [docs/competitive-intelligence.md](docs/competitive-intelligence.md)*
+## ✅ COMPLETED: Capability review (2026-08-02)
+*A review of what an FRC log-analysis tool needs to be useful day to day.*
 
-**Tools surveyed**: Arcinator (Team 6014), wpilog-mcp (Team 2363), Agentic-CSA, ChatFRC (Team 971), FRC-RAG-MCP, FTC-Claude (NCSSM), DragonScout (Team 6014), FRCTools.
-
-**Key finding**: Our copilot is the most comprehensive tool in the ecosystem (no competitor combines live telemetry + 15 analysis primitives + PathPlanner editing + sim/replay + Mode A + dashboard + 21 MCP tools). The main gap is **documentation/knowledge access** — every competitor offers doc search and we have none.
+**Conclusion**: the combination we wanted — live telemetry, a deep set of analysis primitives,
+PathPlanner editing, sim/replay, Mode A and a dashboard — was largely in place. The one clear gap
+was **documentation and game-manual access**, which turns out to be what people reach for most in a
+pit, and which we had none of.
 
 ---
 
-## ✅ COMPLETED: Horizon 0 — Close Competitive Gaps (2026-08-07)
-*Every capability the competitors had and we lacked is now shipped.*
+## ✅ COMPLETED: Horizon 0 — Close the documentation gap (2026-08-07)
+*The capability the review identified as missing is now shipped.*
 
 - ✅ **Documentation search (`search_docs`, `search_manual`, `knowledge_status`)** — new
   `:knowledge` module. Local SQLite **FTS5/bm25** index over WPILib, CTRE Phoenix 6,
@@ -41,7 +42,7 @@ MCP server is now at **34 tools**.
 
 
 ## 🧭 Horizon 1 — Deepening Agentic Sim/Replay (Module 6)
-*Target: 254-style closed-loop robot code iteration in headless simulation.*
+*Target: closed-loop robot code iteration in headless simulation.*
 
 ### ✅ COMPLETE: the closed loop itself (2026-08-07)
 *Full documentation: [docs/CLOSED-LOOP.md](docs/CLOSED-LOOP.md)*
@@ -156,13 +157,12 @@ MCP server is now at **38 tools**.
   Windows bugs (invoking `./gradlew`, registering the extensionless launcher), triplicated. Shared
   logic now lives in `scripts/mcp-install.js`, and CI runs them against a throwaway HOME and asserts
   the command they register actually serves tools.
-- ✅ **Chief Delphi announcement drafted (2026-08-14)** — [docs/RELEASE-ANNOUNCEMENT.md](docs/RELEASE-ANNOUNCEMENT.md),
+- ✅ **Public release announcement drafted (2026-08-14)** — [docs/RELEASE-ANNOUNCEMENT.md](docs/RELEASE-ANNOUNCEMENT.md),
   including an honest limitations section and a pre-flight checklist.
 - **Remaining before a public release** — all judgement calls rather than engineering:
   - **Decide the acknowledgments.** Prior-art and inspiration credits were removed from the README on
     purpose, with the intent to restore transparency before any external release. This is that
     release, so the decision is now due — see the announcement draft.
-  - Remove `docs/competitive-intelligence.md` from anything public; it is internal research and reads
-    badly out of context.
+  - Confirm no user-facing surface references other teams or tools (see the 2026-08-15 sweep).
   - Have someone follow `CONTRIBUTING.md` on Windows start to finish. CI proves the build works
     there; it does not prove the instructions are followable.

@@ -1,9 +1,9 @@
-# Chief Delphi release post — draft
+# Public release post — draft
 
 Working draft of the public announcement. **Not yet posted.** See "Before posting" at the bottom —
-there is one decision that is not mine to make and a short pre-flight list.
+there is one decision that is not the author's to make and a short pre-flight list.
 
-Suggested category: *Technical > Programming*. Suggested title:
+Suggested title:
 
 > **FRC AI Copilot — open-source log analysis, PathPlanner editing, and a closed-loop code
 > iteration harness (MIT)**
@@ -126,20 +126,19 @@ name, and how, is a judgement call for the project owner rather than something t
 Two categories worth separating:
 
 - **Software the project builds on.** WPILib, PathPlanner, maple-sim (physics simulation), dyn4j,
-  Jackson, SQLite/xerial, PDFBox, EJML, JUnit. These are dependencies; on Chief Delphi, naming them
-  is normal courtesy and costs nothing. The MIT license does not compel it, but their licenses may
-  have their own notice requirements worth a check.
-- **Design influences and prior art.** Deliberately omitted pending your call. Chief Delphi's culture
-  takes this seriously, and a release post that reads as though nothing preceded it tends to attract
-  exactly that criticism — so this is worth getting right rather than skipping.
+  Jackson, SQLite/xerial, PDFBox, EJML, JUnit. These are dependencies, and naming them is normal
+  courtesy that costs nothing. The MIT license does not compel it, but their licenses may have their
+  own notice requirements worth a check.
+- **Design influences and prior art.** Deliberately omitted pending your call. The FRC community
+  takes attribution seriously, and a release post that reads as though nothing preceded it tends to
+  attract exactly that criticism — so this is worth getting right rather than skipping.
 
 ### 2. Pre-flight
 
 - [ ] Fill in the Acknowledgments decision above.
 - [ ] Replace **[repo link]** and confirm the repository is actually public.
-- [ ] **Do not publish `docs/competitive-intelligence.md`.** It is internal research comparing this
-      tool to other teams' projects and reads badly out of context. Consider removing it from the
-      public repo entirely, not just from the post.
+- [ ] Re-run the reference sweep before publishing. Every user-facing surface was cleared of other
+      teams, tools and affiliations on 2026-08-15; confirm nothing has crept back in since.
 - [ ] Re-check the test count and tool count against the current build rather than trusting the
       numbers above.
 - [ ] Confirm the season: this post assumes the 2026 season data is current. `GameData` is the one

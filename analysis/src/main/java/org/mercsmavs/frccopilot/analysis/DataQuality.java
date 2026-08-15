@@ -4,8 +4,8 @@ import java.util.Arrays;
 
 /**
  * The epistemic-guardrail primitive: every analysis result carries one of these so the agent can
- * see how much the data actually supports a conclusion. Mirrors wpilog-mcp's design principle that
- * a single match is rarely enough to be definitive.
+ * see how much the data actually supports a conclusion. The principle it enforces: a single match
+ * is rarely enough to be definitive, so nothing should be phrased as though it were.
  */
 public record DataQuality(
         int sampleCount, double spanSeconds, double medianPeriodMs, double maxGapMs, Confidence confidence) {

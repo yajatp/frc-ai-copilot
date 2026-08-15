@@ -84,8 +84,8 @@ findings, fast, from a log that just came off the robot.
 
 Sequence:
 1. `get_guide` (if not already called this session) → `profile_show` for the competing robot.
-2. `power_analysis(file)` — the 2026 "energy management" meta (per Team 254, REBUILT's hidden
-   meta is battery/breaker management, not raw speed). Read the whole hedged assessment,
+2. `power_analysis(file)` — the 2026 "energy management" meta (REBUILT rewards battery and
+   breaker management more than raw speed). Read the whole hedged assessment,
    including any brownout events (`start–end, min volts, duration`), and pass it on faithfully —
    don't compress "1 brownout-risk event, min 6.51 V, this may indicate battery/wiring/current-draw
    issues (3 samples — treat as a weak signal only)" down to just "brownout detected." The

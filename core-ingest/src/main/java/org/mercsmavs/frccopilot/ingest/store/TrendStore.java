@@ -14,7 +14,7 @@ import org.mercsmavs.frccopilot.ingest.LogEntry;
 /**
  * Persistent structured store for parsed-log summaries (SQLite).
  *
- * <p>The design gap this fills (vs. wpilog-mcp, which re-parses in memory each query): we keep
+ * <p>The point of persisting rather than re-parsing on each query: we keep
  * per-log <em>summaries</em> and per-match <em>metrics/events</em> so a season-spanning trend
  * query is a SQL read, not a re-parse of every raw .wpilog. Raw samples stay in the log files
  * and are re-opened lazily only when needed.

@@ -1,6 +1,6 @@
 ---
 name: frc-scaffold
-description: Scaffold a new AdvantageKit subsystem (Xxx + XxxIO + XxxIOTalonFX/XxxIOSparkMax + XxxIOSim + XxxConstants) consistent with a team's robot profile and the 6328 IO-layer pattern used by Team 6369 (Echo, CTRE) and Team 6773 (AlphaBot, CTRE+REV). Use this "just build it" spec-driven mode when asked to build/add/scaffold a new mechanism or subsystem, before falling back to writing files from scratch.
+description: Scaffold a new AdvantageKit subsystem (Xxx + XxxIO + XxxIOTalonFX/XxxIOSparkMax + XxxIOSim + XxxConstants) consistent with a team's robot profile and the AdvantageKit IO-layer pattern used by Team 6369 (Echo, CTRE) and Team 6773 (AlphaBot, CTRE+REV). Use this "just build it" spec-driven mode when asked to build/add/scaffold a new mechanism or subsystem, before falling back to writing files from scratch.
 ---
 
 # Scaffolding a new AdvantageKit subsystem

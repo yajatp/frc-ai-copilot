@@ -5,8 +5,8 @@ import java.util.List;
 
 /**
  * A team-agnostic description of one robot. Designed so a different team can drop in their own
- * profile and get team-specific analysis with no code changes — the generalization gap that
- * neither wpilog-mcp nor ClaudeScope fills.
+ * profile and get analysis specific to their machine with no code changes — the context that
+ * generic log analysis has no way to know.
  *
  * <p>Most of this is <em>bootstrapped</em> from the team's existing repo (see {@link ProfileBuilder})
  * rather than hand-authored, then human-reviewed.
