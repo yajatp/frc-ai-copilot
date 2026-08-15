@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const toml = require('@iarna/toml');
-const { SERVER_NAME, buildServer, writeConfig } = require('../scripts/mcp-install');
+const { SERVER_NAME, buildServer, writeConfig, serverEntry } = require('../scripts/mcp-install');
 
 const { executablePath, javaHome } = buildServer();
 const configPath = path.join(os.homedir(), '.codex', 'config.toml');
@@ -27,11 +27,7 @@ if (fs.existsSync(configPath)) {
 if (!config.mcp_servers) {
     config.mcp_servers = {};
 }
-config.mcp_servers[SERVER_NAME] = {
-    command: executablePath,
-    args: [],
-    env: { JAVA_HOME: javaHome },
-};
+config.mcp_servers[SERVER_NAME] = serverEntry(executablePath, javaHome);
 
 writeConfig(configPath, toml.stringify(config));
 console.log('\nDone. Restart Codex to pick up the new server.');

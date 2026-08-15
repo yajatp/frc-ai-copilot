@@ -163,12 +163,13 @@ the **project root** so it's shared by anyone who checks out the repo:
 }
 ```
 
-On Windows, both paths change — the launcher is the `.bat`, and JSON needs the backslashes escaped:
+On Windows the launcher is a `.bat`, and it is spawned **through `cmd.exe`**:
 ```json
 {
   "mcpServers": {
     "frc-copilot": {
-      "command": "C:\\Users\\you\\code\\frc-ai-copilot\\mcp-server\\build\\install\\mcp-server\\bin\\mcp-server.bat",
+      "command": "cmd.exe",
+      "args": ["/c", "C:\\Users\\you\\code\\frc-ai-copilot\\mcp-server\\build\\install\\mcp-server\\bin\\mcp-server.bat"],
       "env": {
         "JAVA_HOME": "C:\\Users\\you\\wpilib\\2026\\jdk"
       }
@@ -176,6 +177,11 @@ On Windows, both paths change — the launcher is the `.bat`, and JSON needs the
   }
 }
 ```
+
+Naming the `.bat` directly as `command` looks tidier and does not reliably work: a client that spawns
+without a shell cannot launch a batch file — Node refuses outright (EINVAL) and Python's
+`CreateProcess` cannot either. Going through `cmd.exe` works regardless of how a given editor
+spawns. The installers write this form for you. Note JSON needs backslashes escaped.
 
 Notes on this config:
 - **Use an absolute path for `command`.** Claude Code spawns the process directly (no shell

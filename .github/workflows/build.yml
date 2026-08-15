@@ -139,14 +139,19 @@ jobs:
           cfg = json.load(open(os.path.join(fake, ".cursor", "mcp.json")))
           servers = cfg["mcpServers"]
           assert "unrelated" in servers, "installer clobbered an existing server entry"
-          command = servers["frc-ai-copilot"]["command"]
-          assert os.path.exists(command), f"registered a launcher that does not exist: {command}"
+          entry = servers["frc-ai-copilot"]
+          argv = [entry["command"], *entry.get("args", [])]
+          # On Windows the entry is `cmd.exe /c <launcher.bat>`, so the file to check for is the
+          # last argument rather than the command itself.
+          launcher = argv[-1]
+          assert os.path.exists(launcher), f"registered a launcher that does not exist: {launcher}"
 
           requests = (
               '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n'
               '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n'
           )
-          out = subprocess.run([command], input=requests, capture_output=True, text=True, timeout=180).stdout
+          # Spawn exactly what an editor would spawn — argv as registered, no shell.
+          out = subprocess.run(argv, input=requests, capture_output=True, text=True, timeout=180).stdout
           tools = []
           for line in out.splitlines():
               line = line.strip()

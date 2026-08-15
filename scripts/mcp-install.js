@@ -58,6 +58,21 @@ function launcherPath() {
         isWindows ? 'mcp-server.bat' : 'mcp-server');
 }
 
+/**
+ * How to invoke a Windows .bat/.cmd from Node.
+ *
+ * Node refuses to spawn batch files directly since the CVE-2024-27980 fix — execFile throws EINVAL
+ * — because the Windows command line for a batch file is parsed by cmd.exe and was an injection
+ * vector. Going through cmd.exe explicitly is the supported way, and it keeps argument handling in
+ * execFile's hands rather than turning on `shell: true` and hand-quoting paths (this project's own
+ * directory has a space in it, so that would be a live bug, not a hypothetical one).
+ */
+function batchCommand(batPath, args) {
+    return isWindows
+        ? { file: process.env.COMSPEC || 'cmd.exe', args: ['/c', batPath, ...args] }
+        : { file: batPath, args };
+}
+
 /** Build the MCP server and return the launcher path plus the JDK it was built with. */
 function buildServer() {
     const javaHome = findJdk();
@@ -65,7 +80,8 @@ function buildServer() {
     try {
         // execFileSync, not execSync: the path may contain spaces (this project's own directory
         // does), which an unquoted shell command line would split into separate arguments.
-        execFileSync(gradlewPath(), [':mcp-server:installDist'], {
+        const { file, args } = batchCommand(gradlewPath(), [':mcp-server:installDist']);
+        execFileSync(file, args, {
             cwd: projectRoot(),
             stdio: 'inherit',
             env: { ...process.env, JAVA_HOME: javaHome },
@@ -114,16 +130,27 @@ function registerJson(configPath, executablePath, javaHome) {
     if (!config.mcpServers) {
         config.mcpServers = {};
     }
-    config.mcpServers[SERVER_NAME] = {
-        command: executablePath,
-        args: [],
-        env: { JAVA_HOME: javaHome },
-    };
+    config.mcpServers[SERVER_NAME] = { ...serverEntry(executablePath, javaHome) };
     writeConfig(configPath, JSON.stringify(config, null, 2) + '\n');
+}
+
+/**
+ * The command/args an editor should spawn.
+ *
+ * <p>On Windows the launcher is a .bat, and the same restriction that stops Node spawning one
+ * directly applies to any client that spawns without a shell. Registering `cmd.exe /c <launcher>`
+ * is the form that works regardless of how a given editor spawns its MCP servers, so we do not have
+ * to know which of them use a shell.
+ */
+function serverEntry(executablePath, javaHome) {
+    const { file, args } = batchCommand(executablePath, []);
+    return { command: file, args, env: { JAVA_HOME: javaHome } };
 }
 
 module.exports = {
     SERVER_NAME,
+    batchCommand,
+    serverEntry,
     isWindows,
     projectRoot,
     findJdk,
