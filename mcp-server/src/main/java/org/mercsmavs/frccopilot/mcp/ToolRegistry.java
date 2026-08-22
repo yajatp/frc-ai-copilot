@@ -226,6 +226,28 @@ final class ToolRegistry {
                                 false)),
                 ToolRegistry::loopIterate));
 
+        add(tools, new SimpleTool("loop_bootstrap", "Build and run the robot project ONCE without"
+                + " verifying anything, to produce a first log. Use this when loop_iterate reports"
+                + " NO_SCENARIOS: a scenario is derived from a known-good log, so a project that has"
+                + " never produced one has nothing to derive from. Follow with loop_generate on the"
+                + " log this returns, read the thresholds, then loop_iterate.",
+                Schemas.object(
+                        new Schemas.Prop("config", "string",
+                                "Path to loop.yaml or a directory inside the project (default: cwd)", false),
+                        new Schemas.Prop("inputLog", "string",
+                                "For a REPLAY config: the recorded .wpilog to replay", false)),
+                ToolRegistry::loopBootstrap));
+
+        add(tools, new SimpleTool("loop_baseline", "Adopt the most recent PASSING iteration's log as"
+                + " this project's baseline. Do this after loop_iterate passes: with a baseline"
+                + " adopted, later turns report which signals diverged from the known-good run, and"
+                + " can distinguish a sign error (POLARITY_REVERSED) from a mechanism that merely"
+                + " underperformed. Without one, both look like a shortfall.",
+                Schemas.object(
+                        new Schemas.Prop("config", "string",
+                                "Path to loop.yaml or a directory inside the project (default: cwd)", false)),
+                ToolRegistry::loopBaseline));
+
         add(tools, new SimpleTool("smallmodel_train", "Train a tiny logistic classifier from a few"
                 + " moments YOU mark in a log — the 'big AI trains a small AI' technique. The use case"
                 + " is a judgement call with no sensor for it (e.g. the right moment to stage game"
@@ -496,6 +518,10 @@ final class ToolRegistry {
                   7) Use loop_iterate to run a full build/run/verify turn after editing robot
                      code. For a REPLAY config, pass inputLog to ask what a change would have done
                      on a match that already happened, without resimulating.
+                     Onboarding a project with no scenarios yet: loop_bootstrap (produces the first
+                     log) -> loop_generate (proposes checks from it) -> loop_iterate. Once a turn
+                     passes, call loop_baseline — divergence reporting and the sign-error diagnosis
+                     both depend on having a known-good run adopted.
                   8) Use nt_status/nt_get/nt_keys to read a live, running robot's NetworkTables
                      (read-only — there is no NT write tool).
                   9) smallmodel_train/smallmodel_score handle the judgement calls no sensor
@@ -954,6 +980,13 @@ final class ToolRegistry {
         }
     }
 
+    /**
+     * How long the one-shot NT tools wait for the robot's first announcement/value after the
+     * connection is established. NT4 sends these asynchronously, so reading immediately makes a
+     * healthy robot look silent.
+     */
+    private static final double NT_VALUE_TIMEOUT_SECONDS = 3.0;
+
     private static int ntPort(JsonNode a) {
         return a.hasNonNull("port") ? a.get("port").asInt() : NetworkTableInstance.kDefaultPort4;
     }
@@ -974,7 +1007,9 @@ final class ToolRegistry {
                 return "Not connected to " + str(a, "host") + " within 3s.";
             }
             String key = str(a, "key");
-            var value = client.getValue(key);
+            // Not getValue: NT4 delivers the first value a moment after the connection is up, so an
+            // immediate read reports "not published" for a key the robot is actively publishing.
+            var value = client.getValueWithin(key, NT_VALUE_TIMEOUT_SECONDS);
             return value.isValid() ? key + " = " + value.getValue() : key + " (no value / not published).";
         }
     }
@@ -986,9 +1021,11 @@ final class ToolRegistry {
                 return "Not connected to " + str(a, "host") + " within 3s.";
             }
             String prefix = a.hasNonNull("prefix") ? a.get("prefix").asText() : "";
-            var keys = client.keys(prefix);
+            // Topics are announced asynchronously after connect, so wait for the first one rather
+            // than reporting an empty table for a robot that is publishing normally.
+            var keys = client.keysWithin(prefix, NT_VALUE_TIMEOUT_SECONDS);
             if (keys.isEmpty()) {
-                return "(no keys" + (prefix.isEmpty() ? "" : " under " + prefix) + " yet — topics announce shortly after connect)";
+                return "(no keys" + (prefix.isEmpty() ? "" : " under " + prefix) + " published)";
             }
             return String.join("\n", keys);
         }
@@ -1037,6 +1074,38 @@ final class ToolRegistry {
             return "No scenarios found in " + str(a, "scenarioDir");
         }
         return RegressionSuite.runAll(scenarios, r::read).render();
+    }
+
+    private static String loopBootstrap(JsonNode a) throws Exception {
+        LoopConfig config = LoopConfig.load(LoopConfig.discover(Path.of(optional(a, "config", ""))));
+        String inputLog = optional(a, "inputLog", null);
+        return LoopRunner.bootstrap(config, inputLog == null ? null : Path.of(inputLog)).render();
+    }
+
+    private static String loopBaseline(JsonNode a) throws Exception {
+        LoopConfig config = LoopConfig.load(LoopConfig.discover(Path.of(optional(a, "config", ""))));
+        LoopSession session = LoopSession.load(config.sessionFile());
+        LoopSession.Iteration passing = null;
+        for (LoopSession.Iteration it : session.iterations) {
+            if (it.passed && it.log != null) {
+                passing = it;
+            }
+        }
+        if (passing == null) {
+            return "No passing iteration with a log yet — call loop_iterate until it passes, then"
+                    + " adopt that run as the baseline.";
+        }
+        Path target = config.baselinePath();
+        if (target == null) {
+            return "This project's loop.yaml has no 'baseline:' path, so there is nowhere to put it."
+                    + " Add e.g. `baseline: .loop/baseline.wpilog` and call this again.";
+        }
+        java.nio.file.Files.createDirectories(target.getParent());
+        java.nio.file.Files.copy(
+                Path.of(passing.log), target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        return "Baseline adopted from iteration #" + passing.number + ": " + target
+                + "\nFuture turns now report which signals diverged from this run, and can tell a"
+                + " sign error from a shortfall.";
     }
 
     private static String loopIterate(JsonNode a) throws Exception {
