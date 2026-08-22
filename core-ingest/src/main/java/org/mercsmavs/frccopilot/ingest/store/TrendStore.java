@@ -96,42 +96,84 @@ public final class TrendStore implements AutoCloseable {
     }
 
     /**
-     * Insert (or replace, keyed by file SHA) a log summary plus its entry index. Returns the
-     * log's row id. Re-ingesting the same file replaces the prior rows rather than duplicating.
+     * Insert or update (keyed by file SHA) a log summary plus its entry index. Returns the log's
+     * row id, which is stable across re-ingests of the same file — anything already recorded
+     * against that log (Mode A metrics, events, revlog sync) survives and stays attached.
      */
     public long ingest(LogSummary summary, Collection<LogEntry> entries) throws SQLException {
         boolean prevAutoCommit = conn.getAutoCommit();
         conn.setAutoCommit(false);
         try {
-            // Replace any existing row for this file (cascade clears its child rows).
-            try (PreparedStatement del = conn.prepareStatement("DELETE FROM logs WHERE sha = ?")) {
-                del.setString(1, summary.sha());
-                del.executeUpdate();
+            // Re-ingesting a log must not lose what has already been concluded about it. Deleting
+            // the row cascades into `metrics`, which is where Mode A's findings live — so a team
+            // that ran a pit check and then re-ingested the same file silently lost that match from
+            // every season trend. Reuse the existing row instead, and replace only the entry index,
+            // which is the part a re-parse actually regenerates.
+            Long existingId = null;
+            try (PreparedStatement find =
+                    conn.prepareStatement("SELECT id FROM logs WHERE sha = ?")) {
+                find.setString(1, summary.sha());
+                try (ResultSet rs = find.executeQuery()) {
+                    if (rs.next()) {
+                        existingId = rs.getLong(1);
+                    }
+                }
+            }
+            if (existingId != null) {
+                try (PreparedStatement del =
+                        conn.prepareStatement("DELETE FROM entries WHERE log_id = ?")) {
+                    del.setLong(1, existingId);
+                    del.executeUpdate();
+                }
+                try (PreparedStatement upd =
+                        conn.prepareStatement(
+                                """
+                                UPDATE logs SET
+                                  path = ?, team = ?, match_key = ?, robot_profile = ?,
+                                  start_utc_us = ?, duration_s = ?, wpilib_version = ?,
+                                  git_sha = ?, ingested_at = ?
+                                WHERE id = ?""")) {
+                    upd.setString(1, summary.path());
+                    setNullableInt(upd, 2, summary.team());
+                    upd.setString(3, summary.matchKey());
+                    upd.setString(4, summary.robotProfile());
+                    setNullableLong(upd, 5, summary.startUtcMicros());
+                    upd.setDouble(6, summary.durationSeconds());
+                    upd.setInt(7, summary.wpilibVersion());
+                    upd.setString(8, summary.gitSha());
+                    upd.setLong(9, System.currentTimeMillis());
+                    upd.setLong(10, existingId);
+                    upd.executeUpdate();
+                }
             }
 
             long logId;
-            try (PreparedStatement ins =
-                    conn.prepareStatement(
-                            """
-                            INSERT INTO logs
-                              (path, sha, team, match_key, robot_profile, start_utc_us,
-                               duration_s, wpilib_version, git_sha, ingested_at)
-                            VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                            Statement.RETURN_GENERATED_KEYS)) {
-                ins.setString(1, summary.path());
-                ins.setString(2, summary.sha());
-                setNullableInt(ins, 3, summary.team());
-                ins.setString(4, summary.matchKey());
-                ins.setString(5, summary.robotProfile());
-                setNullableLong(ins, 6, summary.startUtcMicros());
-                ins.setDouble(7, summary.durationSeconds());
-                ins.setInt(8, summary.wpilibVersion());
-                ins.setString(9, summary.gitSha());
-                ins.setLong(10, System.currentTimeMillis());
-                ins.executeUpdate();
-                try (ResultSet keys = ins.getGeneratedKeys()) {
-                    keys.next();
-                    logId = keys.getLong(1);
+            if (existingId != null) {
+                logId = existingId;
+            } else {
+                try (PreparedStatement ins =
+                        conn.prepareStatement(
+                                """
+                                INSERT INTO logs
+                                  (path, sha, team, match_key, robot_profile, start_utc_us,
+                                   duration_s, wpilib_version, git_sha, ingested_at)
+                                VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                                Statement.RETURN_GENERATED_KEYS)) {
+                    ins.setString(1, summary.path());
+                    ins.setString(2, summary.sha());
+                    setNullableInt(ins, 3, summary.team());
+                    ins.setString(4, summary.matchKey());
+                    ins.setString(5, summary.robotProfile());
+                    setNullableLong(ins, 6, summary.startUtcMicros());
+                    ins.setDouble(7, summary.durationSeconds());
+                    ins.setInt(8, summary.wpilibVersion());
+                    ins.setString(9, summary.gitSha());
+                    ins.setLong(10, System.currentTimeMillis());
+                    ins.executeUpdate();
+                    try (ResultSet keys = ins.getGeneratedKeys()) {
+                        keys.next();
+                        logId = keys.getLong(1);
+                    }
                 }
             }
 

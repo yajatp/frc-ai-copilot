@@ -53,4 +53,30 @@ class TrendStoreTest {
             assertEquals(2, store.listLogs().size(), "re-ingest must not duplicate");
         }
     }
+
+    @Test
+    void reIngestingALogKeepsWhatWasAlreadyConcludedAboutIt(@TempDir Path tmp) throws Exception {
+        // Mode A records its findings against the log it analysed. Re-ingesting that same file
+        // used to delete the log row and cascade those findings away, so a match silently vanished
+        // from every season trend — and the tool still reported success.
+        String db = tmp.resolve("trends.sqlite").toString();
+        LogEntry voltage = new LogEntry(1, "/PowerDistribution/Voltage", "double", "");
+        voltage.record(1_000_000L);
+        voltage.record(1_020_000L);
+
+        try (TrendStore store = new TrendStore(db)) {
+            LogSummary summary =
+                    new LogSummary("/logs/q10.wpilog", "sha-q10", 6369, "2026dal_qm10", "6369-echo",
+                            1_700_000_000_000_000L, 152.4, 256, "abc123");
+            long first = store.ingest(summary, List.of(voltage));
+            store.recordMetric(first, "loop_p95_ms", "MATCH", 0.51, "ms", "MEDIUM");
+
+            long second = store.ingest(summary, List.of(voltage));
+
+            assertEquals(first, second, "the same file must keep the same log id across re-ingests");
+            assertEquals(1, store.listLogs().size());
+            assertEquals(1, store.trend("loop_p95_ms").size(),
+                    "the Mode A metric must survive a re-ingest of the log it describes");
+        }
+    }
 }

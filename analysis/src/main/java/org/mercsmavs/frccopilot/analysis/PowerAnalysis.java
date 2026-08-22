@@ -91,7 +91,14 @@ public final class PowerAnalysis {
     private static String buildAssessment(
             double min, double threshold, List<BrownoutEvent> events, DataQuality quality) {
         StringBuilder sb = new StringBuilder();
-        if (!events.isEmpty()) {
+        if (min < MIN_PLAUSIBLE_BUS_VOLTS) {
+            // Below this the robot was not running, so the reading is a missing measurement rather
+            // than a low battery. Calling 0 V "approaching the brownout floor" is both wrong and
+            // actionable in the worst way: it sends someone to change a healthy battery.
+            sb.append("Voltage channel read ").append(round(min))
+                    .append(" V, which is not a running robot — treat this as a missing measurement")
+                    .append(" rather than a brownout (check the PDP/PDH is on the bus and logged)");
+        } else if (!events.isEmpty()) {
             sb.append(events.size())
                     .append(events.size() == 1 ? " brownout-risk event" : " brownout-risk events")
                     .append(" detected (voltage below ").append(threshold).append(" V; min ")
@@ -105,6 +112,12 @@ public final class PowerAnalysis {
         sb.append(". ").append(quality.caveat());
         return sb.toString();
     }
+
+    /**
+     * The lowest bus voltage a running robot could report. The roboRIO itself stops well above
+     * this, so anything lower is an unpowered or unpublished channel, not a battery reading.
+     */
+    public static final double MIN_PLAUSIBLE_BUS_VOLTS = 4.0;
 
     private static double round(double x) {
         return Math.round(x * 100) / 100.0;
