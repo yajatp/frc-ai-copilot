@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew build:*)",
+      "Bash(./gradlew installDist:*)",
+      "Bash(./gradlew :*:installDist:*)",
+      "Bash(./gradlew :*:test:*)",
+      "Bash(analysis/build/install/analysis/bin/analysis:*)",
+      "Bash(core-ingest/build/install/core-ingest/bin/core-ingest:*)",
+      "Bash(knowledge/build/install/knowledge/bin/knowledge:*)",
+      "Bash(live-nt/build/install/live-nt/bin/live-nt:*)",
+      "Bash(modes/build/install/modes/bin/modes:*)",
+      "Bash(profile/build/install/profile/bin/profile:*)",
+      "Bash(simreplay/build/install/simreplay/bin/simreplay:*)",
+      "Bash(dashboard/build/install/dashboard/bin/dashboard:*)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -s -o /dev/null:*)",
+      "Bash(ping:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ]
+  }
+}

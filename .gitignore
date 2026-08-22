@@ -40,3 +40,8 @@ tools.json
 
 # Throwaway HOME used by the CI editor-installer check
 .ci-home/
+
+# Per-machine MCP registration: the launcher path inside is absolute, so a committed
+# copy points at nothing on any other machine. Template: .agents/mcp.json.example
+# (the frc-copilot-start skill writes a correct one per checkout).
+.mcp.json
