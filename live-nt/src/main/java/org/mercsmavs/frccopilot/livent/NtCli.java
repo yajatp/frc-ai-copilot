@@ -20,6 +20,9 @@ public final class NtCli {
     private static final String IDENTITY = "frc-ai-copilot";
     private static final double CONNECT_TIMEOUT_SECONDS = 5.0;
 
+    /** How long a one-shot {@code get} waits for the first value to arrive after connecting. */
+    private static final double VALUE_TIMEOUT_SECONDS = 3.0;
+
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
             usage();
@@ -81,7 +84,9 @@ public final class NtCli {
             if (!client.waitForConnection(CONNECT_TIMEOUT_SECONDS)) {
                 System.out.println("(warning: not connected to " + host + " after " + CONNECT_TIMEOUT_SECONDS + "s)");
             }
-            NetworkTableValue value = client.getValue(key);
+            // Not getValue: a fresh connection has not received any values yet, so an immediate
+            // read reports "no value" for a key the robot is actively publishing.
+            NetworkTableValue value = client.getValueWithin(key, VALUE_TIMEOUT_SECONDS);
             if (!value.isValid()) {
                 System.out.println(key + " = <no value>");
                 return;

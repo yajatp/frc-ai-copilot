@@ -155,6 +155,39 @@ public final class NtClient implements AutoCloseable {
         return entry(key).getValue();
     }
 
+    /**
+     * Blocks (polling) until a key has a published value or the timeout elapses, then returns it.
+     *
+     * <p>Needed because an NT4 connection being established does not mean any values have arrived
+     * yet. The standing discovery subscription is {@link PubSubOption#topicsOnly topics-only}, so
+     * the first read of a key subscribes to it and then has to wait a round trip for the server to
+     * send the current value. Reading immediately after {@link #waitForConnection} therefore
+     * reports "no value" for a key that is in fact being published — so any one-shot read should
+     * use this rather than {@link #getValue}.
+     *
+     * @param key topic key (leading slash optional; normalized internally)
+     * @param timeoutSeconds maximum time to wait for a first value
+     * @return the value, which reports {@link NetworkTableValue#isValid()} == false if nothing
+     *     arrived before the timeout
+     */
+    public NetworkTableValue getValueWithin(String key, double timeoutSeconds) {
+        ensureOpen();
+        NetworkTableEntry entry = entry(key);
+        long deadlineNanos = System.nanoTime() + (long) (timeoutSeconds * 1_000_000_000L);
+        while (true) {
+            NetworkTableValue value = entry.getValue();
+            if (value.isValid() || System.nanoTime() >= deadlineNanos) {
+                return value;
+            }
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return entry.getValue();
+            }
+        }
+    }
+
     /** Returns whether a key currently has a published value. */
     public boolean hasKey(String key) {
         ensureOpen();
@@ -174,6 +207,35 @@ public final class NtClient implements AutoCloseable {
             out.add(info.name);
         }
         return out;
+    }
+
+    /**
+     * Blocks (polling) until at least one topic matching {@code prefix} has been announced, or the
+     * timeout elapses, then returns the matching keys.
+     *
+     * <p>Same asynchrony as {@link #getValueWithin}: a client that has just connected has not yet
+     * received the server's topic announcements, so {@link #keys(String)} called immediately after
+     * {@link #waitForConnection} reports an empty table for a robot that is publishing normally.
+     *
+     * @param prefix topic-name prefix to list (empty lists everything)
+     * @param timeoutSeconds maximum time to wait for the first announcement
+     * @return the matching keys, empty if none were announced before the timeout
+     */
+    public Set<String> keysWithin(String prefix, double timeoutSeconds) {
+        ensureOpen();
+        long deadlineNanos = System.nanoTime() + (long) (timeoutSeconds * 1_000_000_000L);
+        while (true) {
+            Set<String> found = keys(prefix);
+            if (!found.isEmpty() || System.nanoTime() >= deadlineNanos) {
+                return found;
+            }
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return keys(prefix);
+            }
+        }
     }
 
     /**

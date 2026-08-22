@@ -32,6 +32,7 @@ class NtClientTest {
     private static final double VALUE_TIMEOUT_SECONDS = 5.0;
 
     private NetworkTableInstance serverInst;
+    private int serverPort4;
     private NtClient client;
     private boolean connected;
 
@@ -44,6 +45,7 @@ class NtClientTest {
 
         serverInst = NetworkTableInstance.create();
         serverInst.startServer(persistFile.toAbsolutePath().toString(), "", port3, port4);
+        serverPort4 = port4;
 
         client = new NtClient();
         client.connect("live-nt-test-client", "127.0.0.1", port4);
@@ -114,6 +116,33 @@ class NtClientTest {
                             () -> observed.getOrDefault("/Test/monitored", Double.NaN) == 7.0,
                             VALUE_TIMEOUT_SECONDS);
             assertTrue(sawChange, "monitor callback never observed the server-side value change");
+        }
+    }
+
+    /**
+     * A one-shot read on a freshly connected client, which is what the {@code live-nt get} CLI does.
+     * The value already exists on the server before the client connects, so this is purely about
+     * whether the read waits for the first value delivery: {@code getValue} returns "no value"
+     * because being connected does not mean anything has arrived yet, while {@code getValueWithin}
+     * waits for it.
+     */
+    @Test
+    void oneShotReadWaitsForTheFirstValueAfterConnecting() {
+        assumeTrue(connected, "loopback NT4 client/server connection did not establish in this environment");
+
+        serverInst.getEntry("/Test/preexisting").setDouble(12.7);
+
+        try (NtClient fresh = new NtClient()) {
+            fresh.connect("live-nt-test-late-client", "127.0.0.1", serverPort4);
+            assumeTrue(
+                    fresh.waitForConnection(CONNECT_TIMEOUT_SECONDS),
+                    "loopback NT4 client/server connection did not establish in this environment");
+
+            assertEquals(
+                    12.7,
+                    fresh.getValueWithin("/Test/preexisting", VALUE_TIMEOUT_SECONDS).getDouble(),
+                    1e-9,
+                    "a one-shot read on a fresh connection never saw a value the server already published");
         }
     }
 
