@@ -34,9 +34,133 @@ drivetrain:
   - name: br
     xM: -0.267
     yM: -0.29845
-devices: []
+devices:
+- canId: 16
+  label: pigeon id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 11
+  label: front left drive motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 21
+  label: front left steer motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 31
+  label: front left encoder id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 12
+  label: front right drive motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 22
+  label: front right steer motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 32
+  label: front right encoder id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 14
+  label: back left drive motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 24
+  label: back left steer motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 34
+  label: back left encoder id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 13
+  label: back right drive motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 23
+  label: back right steer motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 33
+  label: back right encoder id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 1
+  label: left_leader_id
+  subsystem: misc
+  vendor: CTRE
+  source: Constants.java
+  accurate: true
+- canId: 3
+  label: left_follower_id
+  subsystem: misc
+  vendor: CTRE
+  source: Constants.java
+  accurate: true
+- canId: 2
+  label: right_leader_id
+  subsystem: misc
+  vendor: CTRE
+  source: Constants.java
+  accurate: true
+- canId: 4
+  label: right_follower_id
+  subsystem: misc
+  vendor: CTRE
+  source: Constants.java
+  accurate: true
+- canId: 36
+  label: left_intake_launcher_motor_id
+  subsystem: misc
+  vendor: CTRE
+  source: Constants.java
+  accurate: true
+- canId: 35
+  label: right_intake_launcher_motor_id
+  subsystem: misc
+  vendor: CTRE
+  source: Constants.java
+  accurate: true
+- canId: 37
+  label: indexer_motor_id
+  subsystem: misc
+  vendor: CTRE
+  source: Constants.java
+  accurate: true
+- canId: 18
+  label: climber_motor_id
+  subsystem: misc
+  vendor: CTRE
+  source: Constants.java
+  accurate: true
 field:
   game: REBUILT
   season: 2026
-notes:
-- No CAN IDs recovered from *Constants.java — check by hand.

@@ -52,6 +52,7 @@ public final class ProfileBuilder {
         if (devices.isEmpty()) {
             warnings.add("No CAN IDs recovered from *Constants.java — check by hand.");
         }
+        warnings.addAll(duplicateIdWarnings(devices));
 
         Integer team = teamOverride != null ? teamOverride : readTeamNumber(repoRoot);
         if (team == null) {
@@ -154,6 +155,46 @@ public final class ProfileBuilder {
                             + ") but this profile is " + season + " (" + game + ") — vision poses"
                             + " would be resolved against the wrong field. Confirm the layout.");
         }
+    }
+
+    /**
+     * Flag CAN ids claimed by more than one device.
+     *
+     * <p>Stated as something to check rather than as a fault, because it legitimately isn't one in
+     * two common cases: a robot with a second CAN bus addresses 0–62 on each independently, and
+     * CTRE gives each device type its own id space, so a Pigeon and a TalonFX may both answer to
+     * 16. What makes it worth printing anyway is that the failure it hides — two devices of the
+     * same type answering to one id on one bus — presents as an intermittent, and nobody finds
+     * that from the symptom.
+     *
+     * <p>Duplicates within a single subsystem count. A swerve module's steer motor and its CANcoder
+     * are declared side by side in the same generated file, and that is exactly where a copied line
+     * with an unedited id ends up.
+     */
+    private static List<String> duplicateIdWarnings(List<Device> devices) {
+        java.util.Map<Integer, List<Device>> byId = new java.util.LinkedHashMap<>();
+        for (Device d : devices) {
+            if (d.canId() != null) {
+                byId.computeIfAbsent(d.canId(), k -> new ArrayList<>()).add(d);
+            }
+        }
+        List<String> warnings = new ArrayList<>();
+        for (var e : byId.entrySet()) {
+            List<Device> claimants = e.getValue();
+            if (claimants.size() < 2) {
+                continue;
+            }
+            List<String> described = claimants.stream()
+                    .map(d -> (d.subsystem() == null ? "?" : d.subsystem()) + "/" + d.label())
+                    .toList();
+            warnings.add(
+                    "CAN ID " + e.getKey() + " is claimed by " + claimants.size() + " devices ("
+                            + String.join("; ", described) + ") — legitimate if they are on"
+                            + " different CAN buses or are different device types (a Pigeon and a"
+                            + " TalonFX have separate id spaces), a conflict if not. Confirm the bus"
+                            + " and device type for each.");
+        }
+        return warnings;
     }
 
     private ProfileBuilder() {}

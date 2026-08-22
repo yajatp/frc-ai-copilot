@@ -32,6 +32,14 @@ public final class ConstantsScanner {
     // "... = 12; // intake roller"  → id, label
     private static final Pattern ASSIGNMENT =
             Pattern.compile("=\\s*(\\d{1,3})\\s*;\\s*//\\s*(.+?)\\s*$");
+    // "private static final int kFrontLeftDriveMotorId = 18;"  → identifier, id
+    //
+    // Both patterns above need a trailing comment, and the file that holds a swerve robot's most
+    // safety-relevant IDs has none: Tuner X generates TunerConstants.java without them. Recovering
+    // nothing from the single most standardised file in FRC is worse than the odd false positive,
+    // so an int constant whose *name* ends in "Id" is taken at its word.
+    private static final Pattern IDENTIFIER =
+            Pattern.compile("\\bint\\s+(\\w*[Ii][Dd])\\s*=\\s*(\\d{1,3})\\s*;");
 
     public static List<Device> scanRepo(Path repoRoot, String vendor) throws IOException {
         List<Device> devices = new ArrayList<>();
@@ -65,7 +73,7 @@ public final class ConstantsScanner {
         if (!m.find()) {
             m = ASSIGNMENT.matcher(line);
             if (!m.find()) {
-                return null;
+                return matchIdentifier(line, subsystem, source, vendor);
             }
         }
         String label = m.group(2).trim();
@@ -83,6 +91,36 @@ public final class ConstantsScanner {
         int id = Integer.parseInt(m.group(1));
         boolean accurate = !lower.contains("not accurate") && !lower.contains("todo") && !lower.contains("guess");
         return new Device(id, label, subsystem, vendor, source, accurate);
+    }
+
+    /**
+     * A device id declared as a named int constant with no explanatory comment — the Tuner X
+     * house style. The label is read off the identifier, since that is the only description there
+     * is; the value stands unless a trailing comment disowns it.
+     */
+    private static Device matchIdentifier(
+            String line, String subsystem, String source, String vendor) {
+        Matcher m = IDENTIFIER.matcher(line);
+        if (!m.find()) {
+            return null;
+        }
+        String identifier = m.group(1);
+        int id = Integer.parseInt(m.group(2));
+        String label = humanize(identifier);
+        String lower = line.toLowerCase();
+        boolean accurate = !lower.contains("not accurate") && !lower.contains("todo")
+                && !lower.contains("guess");
+        return new Device(id, label, subsystem, vendor, source, accurate);
+    }
+
+    /** "kFrontLeftDriveMotorId" → "front left drive motor id". */
+    static String humanize(String identifier) {
+        String base = identifier.startsWith("k") && identifier.length() > 1
+                        && Character.isUpperCase(identifier.charAt(1))
+                ? identifier.substring(1)
+                : identifier;
+        String spaced = base.replaceAll("(?<=[a-z0-9])(?=[A-Z])", " ");
+        return spaced.toLowerCase();
     }
 
     private static String subsystemOf(String fileName) {

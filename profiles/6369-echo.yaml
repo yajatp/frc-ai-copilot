@@ -34,6 +34,84 @@ drivetrain:
     xM: -0.276
     yM: -0.276
 devices:
+- canId: 16
+  label: pigeon id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 18
+  label: front left drive motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 16
+  label: front left steer motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 11
+  label: front left encoder id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 17
+  label: front right drive motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 21
+  label: front right steer motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 10
+  label: front right encoder id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 15
+  label: back left drive motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 19
+  label: back left steer motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 13
+  label: back left encoder id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 14
+  label: back right drive motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 20
+  label: back right steer motor id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
+- canId: 12
+  label: back right encoder id
+  subsystem: tuner
+  vendor: CTRE
+  source: TunerConstants.java
+  accurate: true
 - canId: 30
   label: left motor CAN ID
   subsystem: hood
@@ -92,8 +170,21 @@ field:
   aprilTagField: k2025ReefscapeWelded
 notes:
 - 3 CAN ID(s) flagged unverified in code (NOT ACCURATE/TODO) — review these.
-- AprilTag layout in code is 'k2025ReefscapeWelded' but game is REBUILT — confirm
-  the correct 2026 field data.
+- "CAN ID 16 is claimed by 2 devices (tuner/pigeon id; tuner/front left steer motor\
+  \ id) — legitimate if they are on different CAN buses or are different device types\
+  \ (a Pigeon and a TalonFX have separate id spaces), a conflict if not. Confirm the\
+  \ bus and device type for each."
+- "CAN ID 10 is claimed by 2 devices (tuner/front right encoder id; intakeflywheel/left\
+  \ motor CAN ID) — legitimate if they are on different CAN buses or are different\
+  \ device types (a Pigeon and a TalonFX have separate id spaces), a conflict if not.\
+  \ Confirm the bus and device type for each."
+- "CAN ID 13 is claimed by 2 devices (tuner/back left encoder id; transfer/TODO: replace\
+  \ with correct id) — legitimate if they are on different CAN buses or are different\
+  \ device types (a Pigeon and a TalonFX have separate id spaces), a conflict if not.\
+  \ Confirm the bus and device type for each."
+- AprilTag layout in code is 'k2025ReefscapeWelded' (2025) but this profile is 2026
+  (REBUILT) — vision poses would be resolved against the wrong field. Confirm the
+  layout.
 mechanisms:
 - name: climber
 - name: drive
