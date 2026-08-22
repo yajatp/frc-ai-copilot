@@ -75,4 +75,48 @@ class ModeATest {
             assertEquals(ModeA.Severity.OK, r.worst());
         }
     }
+
+    @Test
+    void doesNotReportAnUnpoweredVoltageChannelAsABatteryProblem(@TempDir Path tmp)
+            throws Exception {
+        // A simulated or unplugged PDP reads 0 V. That is not a brownout — the robot was not
+        // running — and flagging it sends the pit crew to swap a healthy battery between matches.
+        String db = tmp.resolve("t.sqlite").toString();
+        try (TrendStore store = new TrendStore(db)) {
+            LogSummary summary = new LogSummary(
+                    "/logs/sim.wpilog", "sha-sim", 6369, null, "6369-echo",
+                    1_700_000_000_000_000L, 15.0, 256, "abc");
+            long logId = store.ingest(summary, List.of(new LogEntry(1, "/x", "double", "")));
+
+            double[] volts = new double[60];
+            ModeA.Result result =
+                    ModeA.analyze(store, logId, series(20, volts), null, null, null);
+
+            assertTrue(result.flags().stream()
+                            .anyMatch(f -> f.message().contains("missing measurement")),
+                    () -> "expected the reading to be called out as unusable: " + result.report());
+            assertFalse(result.flags().stream().anyMatch(f -> f.message().contains("Brownout risk")),
+                    "0 V is not a brownout");
+        }
+    }
+
+    @Test
+    void carriesTheConfidenceCaveatOntoTheFlag(@TempDir Path tmp) throws Exception {
+        // The flag line is the only thing anyone reads between matches. The primitives hedge their
+        // findings; dropping that hedge here turns "two samples, treat as weak" into an instruction.
+        String db = tmp.resolve("t.sqlite").toString();
+        try (TrendStore store = new TrendStore(db)) {
+            LogSummary summary = new LogSummary(
+                    "/logs/q10.wpilog", "sha-q", 6369, null, "6369-echo",
+                    1_700_000_000_000_000L, 150.0, 256, "abc");
+            long logId = store.ingest(summary, List.of(new LogEntry(1, "/x", "double", "")));
+
+            // A thin, irregular series: real values, but nowhere near enough of them to conclude.
+            ModeA.Result result = ModeA.analyze(
+                    store, logId, series(900, 12.0, 7.4), null, null, null);
+
+            assertTrue(result.flags().stream().anyMatch(f -> f.message().contains("samples")),
+                    () -> "expected a data-quality caveat on the flag: " + result.report());
+        }
+    }
 }

@@ -43,23 +43,36 @@ public final class ModeA {
         if (voltage != null && !voltage.isEmpty()) {
             PowerAnalysis.Result power = PowerAnalysis.analyze(voltage);
             store.recordMetric(logId, "min_voltage", "MATCH", power.minVolts(), "V", power.quality().confidence().name());
-            if (power.brownoutRisk()) {
+            if (!isPlausibleBusVoltage(power.minVolts())) {
+                // A robot that reached 0 V did not brown out, it was not running. This is what an
+                // unpowered PDP or a simulated one that never publishes looks like, and reporting
+                // it as a battery flag sends the pit crew to swap a perfectly good battery.
+                String unpowered = String.format(
+                        "Voltage channel read %.2f V, which is not a running robot — treat this as a"
+                                + " missing measurement, not a brownout. Check that the PDP/PDH is on"
+                                + " the bus and being logged.",
+                        power.minVolts());
+                flags.add(new Flag(Severity.WATCH, "battery/power",
+                        unpowered + caveat(unpowered, power.quality())));
+            } else if (power.brownoutRisk()) {
                 flags.add(new Flag(Severity.CRITICAL, "battery/power",
-                        "Brownout risk: " + power.assessment()));
+                        withCaveat("Brownout risk: " + power.assessment(), power.quality())));
                 for (PowerAnalysis.BrownoutEvent e : power.events()) {
                     store.recordEvent(logId, (long) (e.startSeconds() * 1_000_000), "brownout", "CRITICAL",
                             String.format("min %.2fV for %.0fms", e.minVolts(), e.durationMs()));
                 }
             } else if (power.minVolts() < PowerAnalysis.DEFAULT_BROWNOUT_VOLTS + 1.0) {
                 flags.add(new Flag(Severity.WATCH, "battery/power",
-                        "Voltage approached the brownout floor (min " + power.minVolts() + " V)."));
+                        withCaveat("Voltage approached the brownout floor (min " + power.minVolts() + " V).",
+                                power.quality())));
             }
 
             BatteryHealth.Result battery = BatteryHealth.analyze(voltage, current);
             store.recordMetric(logId, "voltage_droop", "MATCH", battery.droopVolts(), "V", battery.quality().confidence().name());
             if (!Double.isNaN(battery.projectedEndVolts()) && battery.projectedEndVolts() < PowerAnalysis.DEFAULT_BROWNOUT_VOLTS + 0.5) {
                 flags.add(new Flag(Severity.WATCH, "battery",
-                        "Battery droop trend is steep — " + battery.assessment()));
+                        withCaveat("Battery droop trend is steep — " + battery.assessment(),
+                                battery.quality())));
             }
         }
 
@@ -68,7 +81,8 @@ public final class ModeA {
             store.recordMetric(logId, "can_error_increase", "MATCH", canHealth.totalIncrease(), "count", canHealth.quality().confidence().name());
             if (canHealth.risingErrors()) {
                 flags.add(new Flag(Severity.WATCH, "CAN bus",
-                        "CAN errors rose during the match — " + canHealth.assessment()));
+                        withCaveat("CAN errors rose during the match — " + canHealth.assessment(),
+                                canHealth.quality())));
                 store.recordEvent(logId, 0, "can_errors", "WATCH", canHealth.assessment());
             }
         }
@@ -79,11 +93,51 @@ public final class ModeA {
             store.recordMetric(logId, "loop_overruns", "MATCH", loop.overruns(), "count", loop.quality().confidence().name());
             if (loop.overruns() > 0) {
                 flags.add(new Flag(Severity.WATCH, "loop timing",
-                        loop.overruns() + " loop overrun(s) — " + loop.assessment()));
+                        withCaveat(loop.overruns() + " loop overrun(s) — " + loop.assessment(),
+                                loop.quality())));
             }
         }
 
         return new Result(logId, flags, buildReport(flags));
+    }
+
+    /**
+     * True when the lowest reading could have come from a robot that was actually running; see
+     * {@link PowerAnalysis#MIN_PLAUSIBLE_BUS_VOLTS}.
+     */
+    private static boolean isPlausibleBusVoltage(double minVolts) {
+        return !Double.isNaN(minVolts) && minVolts >= PowerAnalysis.MIN_PLAUSIBLE_BUS_VOLTS;
+    }
+
+    /**
+     * The data-quality caveat, appended to the flag text itself.
+     *
+     * <p>Mode A summarises primitives that each hedge their own findings, and dropping that hedge
+     * on the way out is how "only 2 samples, treat as weak" becomes a confident pit instruction.
+     * The flag is the only thing anyone reads between matches, so the caveat has to ride on it.
+     *
+     * <p>The primitives currently all end their own {@code assessment()} with this same caveat, so
+     * appending unconditionally printed it twice on every flag. Rather than trust that and drop the
+     * append — which would silently lose the hedge the moment a primitive stopped including it —
+     * this appends only when the text does not already carry it.
+     *
+     * @param text the flag text built so far, which may or may not already end with the caveat
+     */
+    /** {@code text} with the data-quality caveat appended, if it does not already end with it. */
+    private static String withCaveat(String text, org.mercsmavs.frccopilot.analysis.DataQuality quality) {
+        return text + caveat(text, quality);
+    }
+
+    private static String caveat(String text, org.mercsmavs.frccopilot.analysis.DataQuality quality) {
+        if (quality == null) {
+            return "";
+        }
+        String caveatText = quality.caveat();
+        if (caveatText == null || caveatText.isBlank() || text.endsWith(caveatText)) {
+            return "";
+        }
+        // caveat() already parenthesises itself; wrapping it again reads as a typo.
+        return " " + caveatText;
     }
 
     private static String buildReport(List<Flag> flags) {
