@@ -3,6 +3,7 @@ package org.mercsmavs.frccopilot.dashboard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.mercsmavs.frccopilot.ingest.store.TrendStore;
 import org.mercsmavs.frccopilot.profile.RobotProfile;
 
@@ -25,6 +26,7 @@ public final class DashboardMain {
         Path pathsDir = null;
         String dbPath = null;
         Path profilePath = null;
+        boolean open = false;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -33,6 +35,7 @@ public final class DashboardMain {
                 case "--port" -> webPort = Integer.parseInt(args[++i]);
                 case "--nt-port" -> ntPort = Integer.parseInt(args[++i]);
                 case "--sim" -> sim = true;
+                case "--open" -> open = true;
                 case "--paths" -> pathsDir = Path.of(args[++i]);
                 case "--db" -> dbPath = args[++i];
                 case "--profile" -> profilePath = Path.of(args[++i]);
@@ -93,6 +96,10 @@ public final class DashboardMain {
             System.out.println("[dashboard] UI not built yet — run: cd dashboard/web && npm install && npm run build");
         }
 
+        if (open) {
+            openInBrowser("http://localhost:" + server.port());
+        }
+
         SimRobot toClose = simRobot;
         TrendStore storeToClose = store;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -106,6 +113,35 @@ public final class DashboardMain {
             }
         }));
         Thread.currentThread().join();
+    }
+
+    /**
+     * Opens {@code url} in the machine's default browser.
+     *
+     * <p>Deliberately not {@code java.awt.Desktop}: that pulls in AWT, which on a headless pit
+     * laptop (or over SSH) throws rather than degrading, and on macOS can bounce a Dock icon for a
+     * process that is otherwise a console server. Shelling out to the platform opener is what every
+     * other FRC tool does, and failing to open a browser must never take the server down with it —
+     * the URL is already printed above, so a failure here is an inconvenience, not an error.
+     */
+    private static void openInBrowser(String url) {
+        String os = System.getProperty("os.name").toLowerCase();
+        List<String> command;
+        if (os.contains("mac") || os.contains("darwin")) {
+            command = List.of("open", url);
+        } else if (os.contains("win")) {
+            // "start" is a cmd builtin, not an executable; the empty string is the window title,
+            // which start would otherwise take from a quoted URL and then open nothing.
+            command = List.of("cmd", "/c", "start", "", url);
+        } else {
+            command = List.of("xdg-open", url);
+        }
+        try {
+            new ProcessBuilder(command).inheritIO().start();
+        } catch (Exception e) {
+            System.out.println("[dashboard] could not open a browser (" + e.getMessage()
+                    + ") — open " + url + " yourself.");
+        }
     }
 
     /** The conventional roboRIO address for a team number: 10.TE.AM.2. */
@@ -122,6 +158,7 @@ public final class DashboardMain {
                   --port <n>       web port (default: 5800)
                   --nt-port <n>    NetworkTables port (default: 5810)
                   --sim            run a built-in simulated robot instead of connecting to hardware
+                  --open           open the dashboard in the default browser once it is serving
                   --paths <dir>    directory containing PathPlanner .path files
                   --db <path>      path to SQLite trend store database
                   --profile <file> path to robot profile JSON file
