@@ -45,13 +45,19 @@ connection is read-only.
 | **Dashboard** | A local web UI over all of it — live health tiles, pit and match views, signals, paths, trends, profile |
 | **Small models** | Train a tiny, inspectable classifier from a few moments you mark in a log, for the judgement calls no sensor reports |
 
-Everything is reachable three ways: as MCP tools (44 of them), as module CLIs, and — for the
+Everything is reachable three ways: as MCP tools (46 of them), as module CLIs, and — for the
 analysis and telemetry parts — in the dashboard.
 
 ## Requirements
 
 The WPILib 2026 install, which provides the JDK and an offline Maven repository. That's it; there is
 no network dependency at runtime.
+
+One caveat worth knowing before an event rather than in a pit: if you point the **closed loop** at
+your own robot project, its first build resolves that project's vendordeps — PathPlanner,
+AdvantageKit, Phoenix 6 — which are *not* in WPILib's offline repo and have to come from the
+internet once. After that they are cached and the loop runs offline like everything else. Run one
+build at home.
 
 Runs on **Windows, macOS and Linux** (x64 or ARM). The correct native libraries are selected
 automatically from the machine you build on.
@@ -147,7 +153,7 @@ simreplay/build/install/simreplay/bin/simreplay iterate example-robot/loop.yaml
 | `modes` | Mode A orchestration and the log-watcher daemon |
 | `smallmodel` | Small-model training from marked log examples |
 | `knowledge` | The offline documentation and game-manual index |
-| `mcp-server` | The MCP server exposing all 44 tools; start with `get_guide` |
+| `mcp-server` | The MCP server exposing all 46 tools; start with `get_guide` |
 | `dashboard` | The local web UI |
 | `example-robot` | A real command-based robot on simulated physics — the worked example the closed loop drives |
 

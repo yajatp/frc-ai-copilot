@@ -1,7 +1,7 @@
 # FRC AI Copilot — Workspace Guidelines & Future AI Instructions
 
 ## Project Overview
-This repository contains an open-source, team-agnostic AI copilot for FRC robot code built by Team 6369 (Mercenary Robotics) / 6773. It exposes 44 MCP tools, offline documentation + game-manual search, closed-loop sim/replay capabilities, Mode A competition diagnostics, and a local web dashboard. Licensed MIT.
+This repository contains an open-source, team-agnostic AI copilot for FRC robot code built by Team 6369 (Mercenary Robotics) / 6773. It exposes 46 MCP tools, offline documentation + game-manual search, closed-loop sim/replay capabilities, Mode A competition diagnostics, and a local web dashboard. Licensed MIT.
 
 ## Dashboard Status
 - **Phase 1 & Phase 2 Complete**: All 7 dashboard sections (Live, Pit, Match, Signals, Paths, Trends, Profile) are built, verified, and active.

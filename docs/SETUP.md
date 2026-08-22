@@ -228,7 +228,7 @@ server, log to stderr, not stdout, or you'll corrupt the protocol stream.
 3. Ask Claude Code to call the `get_guide` tool (or just ask a question that would naturally use
    it, e.g. "what does the FRC copilot server do?"). You should get back the workflow text
    embedded in `ToolRegistry.guide()`.
-4. Confirm the tool list is visible — 44 tools at the time of writing, including `profile_init`,
+4. Confirm the tool list is visible — 46 tools at the time of writing, including `profile_init`,
    `log_info`, `power_analysis`, `mode_a`, `pathplanner_show`, `loop_iterate` and `search_docs`.
    Re-check `tools/list` rather than trusting this list; it grows.
 
