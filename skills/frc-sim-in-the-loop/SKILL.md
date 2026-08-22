@@ -26,62 +26,162 @@ case SIM:
     break;
 ```
 
-## 2. Drive teleop/auto with zero user intervention (a sim input script)
+## 2. Drive auto with zero user intervention
 
-Use `DriverStationSim` to enable and select autonomous, so `./gradlew simulateJava`
-runs a full auto with no human. Put this behind a flag (e.g. a system property) so it only
-runs in the agent's headless loop, never on the real robot:
+This is the part that bites. Four things all have to be true, and getting any of them wrong
+looks identical from outside: the sim runs, writes a log, and the robot sits there disabled.
+
+**a. The flag has to reach the robot JVM.** `./gradlew simulateJava -Dcopilot.headlessAuto=true`
+does *not* work: GradleRIO forks the robot into its own JVM, and `-D` on the Gradle command line
+sets the property on the *Gradle* JVM only. Use an environment variable, which is inherited by
+the forked process:
 
 ```java
-if (Boolean.getBoolean("copilot.headlessAuto")) {
-    DriverStationSim.setAutonomous(true);
-    DriverStationSim.setEnabled(true);
-    DriverStationSim.notifyNewData();
-    // optionally set the auto chooser to a specific routine here
+private static boolean headlessAuto() {
+    return System.getenv("COPILOT_HEADLESS_AUTO") != null;
 }
 ```
 
-Run headless (no GUI extension) so it exits on its own after the auto window.
+**b. The sim GUI has to be off.** Every GradleRIO project has
+`wpi.sim.addGui().defaultEnabled = true` in `build.gradle`, so `simulateJava` loads
+`libhalsim_gui`, and the GUI's Driver Station panel owns the enable state — it will hold the
+robot disabled no matter what your code asks for. Setting `HALSIM_EXTENSIONS` in the
+environment does not override it, because GradleRIO sets that on the task. Make it conditional
+in `build.gradle`:
 
-## 3. Declare the loop (a `loop.yaml` in the robot repo)
+```groovy
+wpi.sim.addGui().defaultEnabled = System.getenv("COPILOT_HEADLESS") == null
+if (System.getenv("COPILOT_HEADLESS") == null) wpi.sim.addDriverstation()
+```
+
+**c. The enable has to be re-asserted every loop, not set once.** A single
+`DriverStationSim.setEnabled(true)` in the `Robot` constructor does not stick. Do it in
+`robotPeriodic()`, before `CommandScheduler.getInstance().run()`.
+
+**d. Nothing ends the match.** A headless sim runs forever; the harness would sit there until
+`timeoutSeconds`. End it yourself — and give the routine long enough to actually **finish**. A
+window that cuts off mid-path leaves the robot still moving when the log ends, and a check on where
+the auto finished cannot be generated from a run that never finished. If a generated scenario says
+it skipped your odometry pose, this is why: raise the window past the length of the routine.
+
+Together, in `Robot.java`:
+
+```java
+private double headlessStart = -1;
+
+@Override
+public void robotPeriodic() {
+    if (headlessAuto()) {
+        if (headlessStart < 0) headlessStart = Timer.getFPGATimestamp();
+        if (Timer.getFPGATimestamp() - headlessStart < 15.0) {
+            DriverStationSim.setAutonomous(true);
+            DriverStationSim.setEnabled(true);
+            DriverStationSim.setDsAttached(true);
+            DriverStationSim.notifyNewData();
+        } else {
+            DriverStationSim.setEnabled(false);
+            DriverStationSim.notifyNewData();
+            Logger.end();          // flush the WPILOGWriter
+            System.exit(0);
+        }
+    }
+    CommandScheduler.getInstance().run();
+    // ... the rest of your robotPeriodic
+}
+```
+
+**Verify it worked before going further.** The whole point is a log of a robot that *ran*:
+
+```bash
+core-ingest dump <log>.wpilog /DriverStation/Enabled
+```
+
+One sample reading `false` means the robot never enabled — go back through (a) to (c). This
+check takes ten seconds and saves an hour of reading an empty log as a robot bug.
+
+## 3. Pick the auto (the chooser has no dashboard to read)
+
+`AutoBuilder.buildAutoChooser()` defaults to "None" with no Driver Station attached, so the
+robot enables and then does nothing. Name the routine explicitly in `autonomousInit()`:
+
+```java
+String name = System.getenv("COPILOT_HEADLESS_AUTO_NAME");
+if (headlessAuto() && name != null && !name.isBlank()) {
+    autonomousCommand = new PathPlannerAuto(name);
+}
+```
+
+## 4. Declare the loop (a `loop.yaml` in the robot repo)
 
 ```yaml
 name: echo-auto
 workDir: .
-build: ["./gradlew", "build"]
-run:   ["./gradlew", "simulateJava", "-Dcopilot.headlessAuto=true"]
+build: ["./gradlew", "build", "-x", "test"]
+run:   ["./gradlew", "simulateJava"]
 logDir: logs/sim               # where the WPILOGWriter above writes
 scenarioDir: scenarios
 baseline: .loop/baseline.wpilog
 sources: ["src/main/java"]
+env:
+  GRADLE_USER_HOME: "{workDir}/.gradle-home"
+  COPILOT_HEADLESS: "1"
+  COPILOT_HEADLESS_AUTO: "1"
+  COPILOT_HEADLESS_AUTO_NAME: "LeftJamesAuto"
+timeoutSeconds: 300
 ```
 
-## 4. Run the loop
+## 5. Run the loop
+
+A project that has never produced a log has nothing to derive a scenario from, so start with
+`bootstrap` — it builds and runs once, verifying nothing:
 
 ```bash
-simreplay iterate <echo-repo-dir>/loop.yaml
+simreplay bootstrap <echo-repo-dir>/loop.yaml
+simreplay generate <the log it printed> <echo-repo-dir>/scenarios/auto.yaml \
+    echo_auto /DriverStation/Autonomous true
+simreplay iterate   <echo-repo-dir>/loop.yaml
+simreplay baseline  <echo-repo-dir>/loop.yaml   # once it passes
 ```
 
-One turn: rebuild, run headless, verify every scenario, and diagnose what failed. The agent
-edits code and re-runs until it passes — the full edit → build → run → verify → iterate loop,
-with plan-review at the front and `DeployGate` before anything reaches a real robot.
+Adopt the baseline as soon as a turn passes. Without it a failure can only be reported as a
+shortfall; with it, an inverted output is recognised as `POLARITY_REVERSED` and every turn
+reports what moved relative to the known-good run — including turns that pass.
 
-Getting the first scenario is easiest from a run that already works:
+### First-run notes
 
-```bash
-simreplay generate logs/sim/good.wpilog scenarios/auto.yaml auto_scores /Robot/State AUTO
-```
+- **Vendordeps need the network once.** PathPlanner, AdvantageKit and Phoenix 6 are not in
+  WPILib's offline Maven repo, so the first build of a robot project has to reach the internet.
+  After that it is cached in `GRADLE_USER_HOME` and the loop runs offline. Plan for this before
+  an event, not in the pit.
+- **`gradlew` may not be executable.** Some robot repos commit it as mode `100644`, and a fresh
+  clone then cannot run its own build. `chmod +x gradlew && git update-index --chmod=+x gradlew`.
 
-Read the failure *kind* rather than just FAIL: `SIGNAL_CONSTANT` means the mechanism never
-ran, `SHORTFALL` means it ran and fell short, `SIGNAL_ABSENT` usually means a renamed log key.
-With a baseline adopted (`simreplay baseline`), failures also come with a ranked list of which
-signals diverged from the known-good run.
+Each turn rebuilds, runs headless, verifies every scenario, and diagnoses what failed. The agent
+edits code and re-runs until it passes — the full edit → build → run → verify → iterate loop, with
+plan-review at the front and `DeployGate` before anything reaches a real robot.
+
+Read the failure *kind* rather than just FAIL: `SIGNAL_CONSTANT` means the mechanism never ran,
+`POLARITY_REVERSED` means it ran the wrong way round (a sign error, not a tuning problem),
+`SHORTFALL` means it ran and fell short or overshot, and `SIGNAL_ABSENT` usually means a renamed
+log key — or a struct named where one of its fields was meant.
 
 The older `simreplay run <workDir> <logDir> <scenario> -- <cmd...>` still works for a one-off
 check without a `loop.yaml`, but it has no diagnosis, no baseline diff, and no journal.
 
 > Note on this repo: Echo's local reference clone can be patched as above to demo this
 > locally, but that patch must **not** be pushed to the team's robot repo.
+
+## What sim will not catch
+
+Worth saying plainly, because the loop passing is easy to read as "the robot is fine":
+
+- **Motor and encoder inversions.** `ModuleIOSim` does not model the inversion flags in
+  `TunerConstants`, so flipping `kInvertRightSide` produces a bit-identical run. Inversion bugs
+  are invisible here by construction — they are found on blocks, not in this loop.
+- **Anything downstream of real hardware timing** — CAN latency, brownout under real current
+  draw, a sensor that drops out when a wire is chafed.
+
+Sim answers questions about *logic and control*. It does not answer questions about *wiring*.
 
 ## maple-sim (physics/collision fidelity)
 

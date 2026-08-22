@@ -96,6 +96,14 @@ public final class WpilogReader {
      * returned as a {@code byte[]} for downstream decoders to interpret.
      */
     public List<Sample> read(String entryName) {
+        List<Sample> direct = readEntry(entryName);
+        if (!direct.isEmpty()) {
+            return direct;
+        }
+        return readStructField(entryName);
+    }
+
+    private List<Sample> readEntry(String entryName) {
         int targetId = -1;
         String targetType = null;
         List<Sample> samples = new ArrayList<>();
@@ -114,6 +122,27 @@ public final class WpilogReader {
         return samples;
     }
 
+    /**
+     * Resolve {@code .../Odometry/Robot/X} against the struct entry {@code .../Odometry/Robot}. A
+     * scenario has to be able to name a number, and a pose is not one; see {@link StructFields}.
+     */
+    private List<Sample> readStructField(String entryName) {
+        int split = entryName.lastIndexOf(StructFields.SEPARATOR);
+        if (split <= 0) {
+            return List.of();
+        }
+        String base = entryName.substring(0, split);
+        String field = entryName.substring(split + StructFields.SEPARATOR.length());
+        List<Sample> samples = new ArrayList<>();
+        for (Sample s : readEntry(base)) {
+            Double v = StructFields.project(s.value()).get(field);
+            if (v != null) {
+                samples.add(new Sample(s.timestampUs(), v));
+            }
+        }
+        return samples;
+    }
+
     /** Aggregate shape of one numeric signal, accumulated without retaining its samples. */
     public static final class NumericSummary {
         public final String name;
@@ -124,6 +153,7 @@ public final class WpilogReader {
         private double sum;
         private double first;
         private double last;
+        private double lastStep = Double.NaN;
         private boolean nonDecreasing = true;
         private boolean nonIncreasing = true;
 
@@ -138,6 +168,7 @@ public final class WpilogReader {
             } else {
                 nonDecreasing &= v >= last;
                 nonIncreasing &= v <= last;
+                lastStep = Math.abs(v - last);
             }
             last = v;
             count++;
@@ -179,6 +210,17 @@ public final class WpilogReader {
             return count > 1 && nonIncreasing && max > min;
         }
 
+        /**
+         * How far the signal moved between its final two samples.
+         *
+         * <p>Distinguishes a value that has settled from one that was still travelling when the
+         * window closed. A check on the last value of a signal that is still moving fast is a check
+         * on exactly where the window happened to end, and fails on ordinary timing jitter.
+         */
+        public double lastStep() {
+            return lastStep;
+        }
+
         /** True when every sample held the same value (a signal that never moved). */
         public boolean constant() {
             return count > 0 && min == max;
@@ -202,6 +244,11 @@ public final class WpilogReader {
         Map<Integer, NumericSummary> byId = new LinkedHashMap<>();
         Map<Integer, String> typeById = new LinkedHashMap<>();
         Map<String, NumericSummary> byName = new LinkedHashMap<>();
+        // Struct entries have no single number to summarize, so they are summarized as their scalar
+        // fields instead — one NumericSummary per field, named "<entry>/<field>". Without this a
+        // pose is invisible to scenario generation and to baseline divergence alike.
+        Map<Integer, String> structNameById = new LinkedHashMap<>();
+
         for (DataLogRecord record : reader) {
             if (record.isStart()) {
                 DataLogRecord.StartRecordData start = record.getStartData();
@@ -210,6 +257,9 @@ public final class WpilogReader {
                             byName.computeIfAbsent(start.name, n -> new NumericSummary(n, start.type));
                     byId.put(start.entry, summary);
                     typeById.put(start.entry, start.type);
+                } else if (StructDecoder.isStructType(start.type)) {
+                    structNameById.put(start.entry, start.name);
+                    typeById.put(start.entry, start.type);
                 }
             } else if (!record.isControl()) {
                 NumericSummary summary = byId.get(record.getEntry());
@@ -217,6 +267,21 @@ public final class WpilogReader {
                     Double v = asDouble(decode(record, typeById.get(record.getEntry())));
                     if (v != null) {
                         summary.add(v);
+                    }
+                    continue;
+                }
+                String structName = structNameById.get(record.getEntry());
+                if (structName != null && timestampFilter.test(record.getTimestamp())) {
+                    Object decoded = decode(record, typeById.get(record.getEntry()));
+                    String structType = typeById.get(record.getEntry());
+                    for (Map.Entry<String, Double> field : StructFields.project(decoded).entrySet()) {
+                        String name = structName + StructFields.SEPARATOR + field.getKey();
+                        // Carry the struct type through, not "double": downstream, what a number
+                        // means depends on what it was projected from. A Pose2d's rotation is where
+                        // the robot ended up facing; a Rotation2d module azimuth is a wheel angle,
+                        // and putting the same check on both is how a suite gets deleted.
+                        byName.computeIfAbsent(name, n -> new NumericSummary(n, structType))
+                                .add(field.getValue());
                     }
                 }
             }

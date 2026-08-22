@@ -33,6 +33,7 @@ public final class LoopCli {
         }
         switch (args[0]) {
             case "iterate" -> iterate(args);
+            case "bootstrap" -> bootstrap(args);
             case "history" -> history(args);
             case "baseline" -> baseline(args);
             case "generate" -> generate(args);
@@ -70,6 +71,16 @@ public final class LoopCli {
         LoopRunner.IterationReport report = LoopRunner.iterate(loop, scenario, inputLog);
         System.out.print(report.render());
         System.exit(report.passed() ? 0 : 1);
+    }
+
+    /** bootstrap [loop.yaml] [--input-log <file.wpilog>] — build + run once, verifying nothing. */
+    private static void bootstrap(String[] args) throws Exception {
+        Path config = LoopConfig.discover(configArg(args));
+        Path inputLog = flag(args, "--input-log");
+        LoopConfig loop = LoopConfig.load(config);
+        LoopRunner.IterationReport report = LoopRunner.bootstrap(loop, inputLog);
+        System.out.print(report.render());
+        System.exit(report.outcome() == LoopRunner.Outcome.BOOTSTRAPPED ? 0 : 1);
     }
 
     private static void history(String[] args) throws Exception {
@@ -209,6 +220,10 @@ public final class LoopCli {
                                                                one turn: build, run, verify, diagnose
                                                                --input-log replays that log instead of
                                                                the config's own (replay configs only)
+                  bootstrap [loop.yaml] [--input-log <in.wpilog>]
+                                                               build + run once WITHOUT verifying, to
+                                                               produce the first log on a project that
+                                                               has none to derive a scenario from
                   history  [loop.yaml]                         iteration journal for this project
                   baseline [loop.yaml]                         adopt latest passing log as baseline
                   generate <good.wpilog> <out.yaml> [name] [phaseSignal phaseValue]

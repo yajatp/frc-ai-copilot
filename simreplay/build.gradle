@@ -10,6 +10,11 @@ dependencies {
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // Test logs write a real struct:Pose2d entry, because pose-shaped signals are where scenario
+    // generation and baseline divergence used to go blind. Needs WPILib's own struct serializer.
+    testImplementation "edu.wpi.first.wpimath:wpimath-java:${wpilibVersion}"
+    testImplementation "edu.wpi.first.wpiunits:wpiunits-java:${wpilibVersion}"
+    testRuntimeOnly 'us.hebi.quickbuf:quickbuf-runtime:1.4'
 }
 
 application {

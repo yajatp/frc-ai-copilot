@@ -94,18 +94,44 @@ public final class LogDiff {
         }
 
         for (String name : shared) {
+            if (Bookkeeping.isBookkeeping(name)) {
+                // A wall clock differs between any two runs, by a lot, every time — it would
+                // otherwise take the top of this ranking and push the real divergence off the list.
+                continue;
+            }
             WpilogReader.NumericSummary b = baseline.get(name);
             WpilogReader.NumericSummary r = run.get(name);
             double scale = scaleOf(b);
-            double meanDelta = Math.abs(b.mean() - r.mean()) / scale;
-            double lastDelta = Math.abs(b.last() - r.last()) / scale;
-            double score = Math.max(meanDelta, lastDelta);
+            double score;
+            if (isAccumulator(b) && isAccumulator(r)) {
+                // An accumulating signal — a wheel's total travel, a cycle counter — is a running
+                // integral, so its absolute value at any instant is mostly a statement about how
+                // much of the window elapsed. Two honest runs of identical code differ hugely, and
+                // that lands them at the top of a ranking meant to surface what the edit changed.
+                // Compare how much they accumulated instead, which is the part the edit can move.
+                double baseTravel = Math.abs(b.last() - b.first());
+                double runTravel = Math.abs(r.last() - r.first());
+                double travelScale = Math.max(Math.max(baseTravel, runTravel), 1e-9);
+                score = Math.abs(baseTravel - runTravel) / travelScale;
+            } else {
+                double meanDelta = Math.abs(b.mean() - r.mean()) / scale;
+                double lastDelta = Math.abs(b.last() - r.last()) / scale;
+                score = Math.max(meanDelta, lastDelta);
+            }
             if (Double.isFinite(score) && score > NOISE_FLOOR) {
                 deltas.add(new SignalDelta(name, b.mean(), r.mean(), b.last(), r.last(), score));
             }
         }
         deltas.sort((a, b) -> Double.compare(b.score(), a.score()));
         return new Result(deltas, onlyInBaseline, onlyInRun);
+    }
+
+    /**
+     * True for a signal that only ever moves one way — odometry distance, an error counter, a score
+     * tally. Its instantaneous value carries elapsed time as much as it carries behaviour.
+     */
+    private static boolean isAccumulator(WpilogReader.NumericSummary s) {
+        return s.monotonicIncreasing() || s.monotonicDecreasing();
     }
 
     /**

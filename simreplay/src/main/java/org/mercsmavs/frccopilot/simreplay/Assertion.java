@@ -65,9 +65,19 @@ public record Assertion(
         List<WpilogReader.Sample> samples = source.read(signal);
         List<Double> values = numericValuesInPhase(source, samples);
         if (values.isEmpty()) {
+            // Distinguish "that name holds no numbers" from "that name is not in the log at all".
+            // They read identically to a user and call for opposite fixes: the first wants a field
+            // suffix (a Pose2d is not a number — /Odometry/Robot/X is), the second wants the key.
+            String hint = "";
+            if (!samples.isEmpty()) {
+                hint = " — the entry exists but holds no numeric samples;"
+                        + " if it is a struct (a pose, say), name one of its fields"
+                        + " (e.g. \"" + signal + "/X\")";
+            }
             return new Result(false, Double.NaN, 0,
                     "no samples for '" + signal + "'"
-                            + (phaseSignal != null ? " in phase " + phaseSignal + "==" + phaseEquals : ""));
+                            + (phaseSignal != null ? " in phase " + phaseSignal + "==" + phaseEquals : "")
+                            + hint);
         }
         double actual = aggregate(values);
         boolean passed = op.test(actual, threshold);

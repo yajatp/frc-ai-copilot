@@ -63,7 +63,12 @@ public final class LoopRunner {
                 sb.append(r.render());
             }
             sb.append(diagnosis.render());
-            baselineDiff.ifPresent(d -> sb.append("baseline comparison:\n").append(d.render(8)));
+            baselineDiff.ifPresent(d -> sb.append(
+                            outcome == Outcome.PASSED
+                                    ? "baseline comparison (checks passed — anything large here moved"
+                                            + " without a check noticing):\n"
+                                    : "baseline comparison:\n")
+                    .append(d.render(8)));
             if (!deltas.isEmpty()) {
                 sb.append("since last iteration:\n");
                 for (String d : deltas) {
@@ -82,7 +87,9 @@ public final class LoopRunner {
         NO_LOG,
         NO_SCENARIOS,
         /** A replay config's input log is missing — a setup problem, not a robot-code problem. */
-        NO_INPUT_LOG
+        NO_INPUT_LOG,
+        /** Built and ran to produce a first log, deliberately without verifying it. */
+        BOOTSTRAPPED
     }
 
     /**
@@ -104,6 +111,26 @@ public final class LoopRunner {
      */
     public static IterationReport iterate(
             LoopConfig config, Path scenarioOverride, Path inputLogOverride) throws Exception {
+        return iterate(config, scenarioOverride, inputLogOverride, false);
+    }
+
+    /**
+     * Build and run once without verifying anything, to produce the first log.
+     *
+     * <p>Every other entry point needs a scenario, and the only supported way to write one is to
+     * derive it from a log that already exists — which, on a project being onboarded, none does.
+     * That circle has to be broken inside the harness rather than by telling someone to go run
+     * their simulator by hand, because getting a robot project to produce a log headlessly is the
+     * hard part of onboarding and it is exactly the part the loop already knows how to do.
+     */
+    public static IterationReport bootstrap(LoopConfig config, Path inputLogOverride)
+            throws Exception {
+        return iterate(config, null, inputLogOverride, true);
+    }
+
+    private static IterationReport iterate(
+            LoopConfig config, Path scenarioOverride, Path inputLogOverride, boolean bootstrap)
+            throws Exception {
         Path sessionFile = config.sessionFile();
         LoopSession session = LoopSession.load(sessionFile);
         session.project = config.name;
@@ -112,11 +139,14 @@ public final class LoopRunner {
         int number = session.iterations.size() + 1;
 
         List<Scenario> scenarios = loadScenarios(config, scenarioOverride);
-        if (scenarios.isEmpty()) {
+        if (scenarios.isEmpty() && !bootstrap) {
             return finish(session, sessionFile, fingerprint, number, Outcome.NO_SCENARIOS, 0,
                     Optional.empty(), List.of(), Diagnosis.empty(), Optional.empty(), scenarios,
-                    "No scenarios found — nothing to verify. Generate one from a known-good run"
-                            + " (`loop generate`) or write one by hand.",
+                    "No scenarios found — nothing to verify. If this project has never produced a"
+                            + " log, run `loop bootstrap` first: it builds and runs once without"
+                            + " verifying, so there is something to derive a scenario from."
+                            + " Then `loop generate <that log> " + config.scenarioDirPath()
+                            + "/auto.yaml`, read the thresholds, and iterate.",
                     "");
         }
 
@@ -140,10 +170,16 @@ public final class LoopRunner {
             SimRunner.ExecResult build = SimRunner.exec(
                     config.workDirPath(), config.build, config.timeoutSeconds, 60, config.resolvedEnv());
             if (!build.ok()) {
-                String why = build.timedOut()
-                        ? "Build timed out after " + config.timeoutSeconds + "s."
-                        : "Build failed (exit " + build.exitCode() + "). The code does not compile;"
-                                + " fix that before reading any robot behaviour into this.";
+                String why;
+                if (build.timedOut()) {
+                    why = "Build timed out after " + config.timeoutSeconds + "s.";
+                } else if (build.exitCode() == SimRunner.LAUNCH_FAILED_EXIT) {
+                    // The build command never started, so this says nothing about the robot code.
+                    why = "The build command could not be started — see below.";
+                } else {
+                    why = "Build failed (exit " + build.exitCode() + "). The code does not compile;"
+                            + " fix that before reading any robot behaviour into this.";
+                }
                 return finish(session, sessionFile, fingerprint, number, Outcome.BUILD_FAILED,
                         build.exitCode(), Optional.empty(), List.of(), Diagnosis.empty(), Optional.empty(), scenarios,
                         why, build.tail());
@@ -181,8 +217,27 @@ public final class LoopRunner {
                     run.tail());
         }
 
+        if (bootstrap) {
+            return finish(session, sessionFile, fingerprint, number, Outcome.BOOTSTRAPPED,
+                    run.exitCode(), log, List.of(), Diagnosis.empty(), Optional.empty(), scenarios,
+                    "Produced a log without verifying anything: " + log.get()
+                            + "\nIf that run was a good one, derive the first scenario from it:\n"
+                            + "  loop generate " + log.get() + " " + config.scenarioDirPath()
+                            + "/auto.yaml <name> <phaseSignal> <phaseValue>\n"
+                            + "Read the generated thresholds before banking them — they encode this"
+                            + " one run. Then `loop iterate` verifies against them.",
+                    run.tail());
+        }
+
         // 3. Verify, and 4. diagnose whatever failed.
         WpilogReader reader = new WpilogReader(log.get().toString());
+
+        // Read the baseline before diagnosing rather than after: a sign error is only recognisable
+        // against a known-good run, so the diagnosis needs it, not just the divergence report.
+        WpilogReader baseline = openBaseline(config, log.get());
+        Map<String, WpilogReader.NumericSummary> baselineSummaries =
+                baseline == null ? null : baseline.numericSummaries();
+
         List<Verifier.LoopResult> results = new ArrayList<>();
         List<Diagnosis.Finding> findings = new ArrayList<>();
         java.util.Set<String> seen = new java.util.LinkedHashSet<>();
@@ -196,20 +251,20 @@ public final class LoopRunner {
             }
             // Scenarios overlap on the same signals by design, so merge their findings rather than
             // repeating one defect once per scenario that noticed it.
-            for (Diagnosis.Finding f : Diagnosis.of(scenario, result, reader).findings()) {
+            for (Diagnosis.Finding f :
+                    Diagnosis.of(scenario, result, reader, baselineSummaries).findings()) {
                 if (seen.add(f.kind() + "|" + f.signal())) {
                     findings.add(f);
                 }
             }
         }
 
-        // The baseline diff describes the run, not any one scenario — compute it once.
+        // The baseline diff describes the run, not any one scenario — compute it once. It is
+        // reported on a passing turn too: a change can move the robot materially while staying
+        // inside every threshold, and silence there is how a regression ships.
         Optional<LogDiff.Result> baselineDiff = Optional.empty();
-        if (!all) {
-            WpilogReader baseline = openBaseline(config, log.get());
-            if (baseline != null) {
-                baselineDiff = Optional.of(LogDiff.compare(baseline, reader));
-            }
+        if (baselineSummaries != null) {
+            baselineDiff = Optional.of(LogDiff.compare(baselineSummaries, reader.numericSummaries()));
         }
 
         return finish(session, sessionFile, fingerprint, number,
